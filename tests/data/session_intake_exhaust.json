@@ -1,0 +1,29 @@
+{
+  "meta": {"project": "fixtures-intake-exhaust"},
+  "mode": "baseline",
+  "air": {"p_tot": 101325.0, "T": 293.15, "RH": 0.0},
+  "engine": {"displ_L": 2.0, "cylinders": 4, "ve": 0.95},
+  "geom": {
+    "bore_m": 0.086, "valve_int_m": 0.046, "valve_exh_m": 0.040,
+    "throat_m": 0.034, "stem_m": 0.007,
+    "port_volume_cc": 180.0, "port_length_m": 0.110,
+    "seat_angle_deg": 45.0, "seat_width_m": 0.0015
+  },
+  "lifts": {
+    "intake": [
+      {"lift_mm": 1.0, "q_cfm": 120.0, "dp_inH2O": 28.0},
+      {"lift_mm": 2.0, "q_cfm": 175.0, "dp_inH2O": 28.0},
+      {"lift_mm": 3.0, "q_cfm": 220.0, "dp_inH2O": 28.0},
+      {"lift_mm": 4.0, "q_cfm": 260.0, "dp_inH2O": 28.0},
+      {"lift_mm": 5.0, "q_cfm": 290.0, "dp_inH2O": 28.0}
+    ],
+    "exhaust": [
+      {"lift_mm": 1.0, "q_cfm": 90.0,  "dp_inH2O": 28.0},
+      {"lift_mm": 2.0, "q_cfm": 140.0, "dp_inH2O": 28.0},
+      {"lift_mm": 3.0, "q_cfm": 180.0, "dp_inH2O": 28.0},
+      {"lift_mm": 4.0, "q_cfm": 210.0, "dp_inH2O": 28.0},
+      {"lift_mm": 5.0, "q_cfm": 230.0, "dp_inH2O": 28.0}
+    ]
+  },
+  "csa": {"min_csa_m2": 0.00095, "avg_csa_m2": 0.00120}
+}
