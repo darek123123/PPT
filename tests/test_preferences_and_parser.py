@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+
 def test_preferences_roundtrip_qsettings() -> None:
     from iop_flow_gui.preferences import Prefs, save_prefs, load_prefs
+
     # Save custom prefs
     p = Prefs(a_ref_mode="throat", eff_mode="logistic", dp_ref_inH2O=30.5, v_target=95.0)
     save_prefs(p)

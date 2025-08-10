@@ -86,7 +86,7 @@ class PreferencesDialog(QDialog):
 
         # dp_ref
         row3 = QHBoxLayout()
-        row3.addWidget(QLabel("dp_ref [\"H2O]:", self))
+        row3.addWidget(QLabel('dp_ref ["H2O]:', self))
         self.ed_dp = QLineEdit(self)
         self.ed_dp.setText(f"{self._prefs.dp_ref_inH2O:.2f}")
         row3.addWidget(self.ed_dp)

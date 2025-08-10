@@ -151,6 +151,7 @@ class StepCSA(QWidget):
 
         prefs = load_prefs()
         import time
+
         t0 = time.perf_counter()
         result = run_all(
             session,

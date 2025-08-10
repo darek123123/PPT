@@ -91,6 +91,7 @@ class RunAllView(QWidget):
             return
         prefs = load_prefs()
         import time
+
         t0 = time.perf_counter()
         self._result = run_all_api(
             self._session,

@@ -187,7 +187,11 @@ class _SideTable(QWidget):
             line = raw.strip()
             if not line:
                 continue
-            parts = [p.strip() for p in (line.split(";") if ";" in line else line.replace("\t", " ").split()) if p]
+            parts = [
+                p.strip()
+                for p in (line.split(";") if ";" in line else line.replace("\t", " ").split())
+                if p
+            ]
             if len(parts) >= 2:
                 # candidate line; if parse_rows didn't include it, count as bad
                 # crude heuristic: will be overcounted if duplicates trimmed; acceptable for toast

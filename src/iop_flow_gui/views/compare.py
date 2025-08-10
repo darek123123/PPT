@@ -86,7 +86,9 @@ class CompareView(QWidget):
 
     def _pick_file(self, which: str) -> None:
         start_dir = self._last_dir()
-        title = "Wczytaj Session JSON (Before)" if which == "before" else "Wczytaj Session JSON (After)"
+        title = (
+            "Wczytaj Session JSON (Before)" if which == "before" else "Wczytaj Session JSON (After)"
+        )
         path, _ = QFileDialog.getOpenFileName(self, title, start_dir, "JSON (*.json)")
         if not path:
             return
@@ -112,7 +114,9 @@ class CompareView(QWidget):
         if not self._result:
             return
         start_dir = self._last_dir()
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz różnice JSON", start_dir, "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Zapisz różnice JSON", start_dir, "JSON (*.json)"
+        )
         if not path:
             return
         self._set_last_dir(path)
