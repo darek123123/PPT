@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from typing import Iterable, Tuple, Optional
 import math
 
+from iop_flow import formulas as F
+from math import pi, sqrt
+
 
 @dataclass(frozen=True)
 class RunnerSpec:
@@ -135,3 +138,66 @@ def grid_search_runner(
                     best = (cand, score)
     assert best is not None
     return best
+
+
+def quarter_wave_L_phys(
+    rpm_target: float,
+    n_harm: int,
+    D_m: float,
+    T_K: float = 293.15,
+) -> float:
+    """
+    Calculate recommended runner length (L_phys) for target rpm (quarter-wave tuning).
+    Returns length in meters.
+    """
+    a = F.speed_of_sound(T_K)
+    f_pulse = rpm_target / 120.0
+    k = 2 * n_harm - 1  # odd harmonics: 1, 3, 5...
+    f_tune = k * f_pulse
+    if f_tune <= 0:
+        return 0.0
+    L_eff = a / (4.0 * f_tune)
+    L_phys = max(L_eff - 0.6 * D_m, 0.0)
+    return L_phys
+
+
+def quarter_wave_rpm_for_L(
+    L_m: float,
+    n_harm: int,
+    D_m: float,
+    T_K: float = 293.15,
+) -> float:
+    """
+    Calculate rpm for a given runner length (quarter-wave tuning).
+    Returns rpm.
+    """
+    a = F.speed_of_sound(T_K)
+    L_eff = L_m + 0.6 * D_m
+    if L_eff <= 0 or n_harm <= 0:
+        return 0.0
+    k = 2 * n_harm - 1
+    f_tune = a / (4.0 * L_eff)
+    f_pulse = f_tune / k
+    rpm = f_pulse * 120.0
+    return rpm
+
+
+def helmholtz_f_and_rpm(
+    D_m: float,
+    L_m: float,
+    V_plenum_m3: float,
+    n_harm: int,
+    T_K: float = 293.15,
+) -> tuple[float, float]:
+    """
+    Calculate Helmholtz resonance frequency (Hz) and approx rpm.
+    Returns (f_H [Hz], rpm_approx).
+    """
+    a = F.speed_of_sound(T_K)
+    A = pi * (D_m / 2.0) ** 2
+    L_eff = L_m + 0.6 * D_m
+    if L_eff <= 0 or V_plenum_m3 <= 0 or A <= 0 or n_harm <= 0:
+        return 0.0, 0.0
+    f_H = (a / (2 * pi)) * sqrt(A / (V_plenum_m3 * L_eff))
+    rpm_approx = f_H * 120.0 / n_harm
+    return f_H, rpm_approx

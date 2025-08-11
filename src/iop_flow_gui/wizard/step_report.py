@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QRadioButton,
     QLineEdit,
+    QDoubleSpinBox,
 )
 
 import json
@@ -150,6 +151,114 @@ class StepReport(QWidget):
 
         root.addWidget(hp_group)
 
+
+        # --- Tuning (expanded) ---
+        from PySide6.QtWidgets import QComboBox
+        tuning_box = QGroupBox("Tuning", self)
+        tuning_lay = QVBoxLayout(tuning_box)
+
+        # Prefill from state or defaults
+        tdict = dict(self.state.tuning.get("intake_calc", {}))
+        def _get_tuning(key, default):
+            try:
+                return type(default)(tdict.get(key, default))
+            except Exception:
+                return default
+
+        # L_mm
+        row_L = QHBoxLayout()
+        self.spn_L_mm = QDoubleSpinBox(self)
+        self.spn_L_mm.setRange(50.0, 800.0)
+        self.spn_L_mm.setSingleStep(1.0)
+        self.spn_L_mm.setDecimals(1)
+        self.spn_L_mm.setToolTip("Długość kanału dolotowego (runner) L w mm.\nWartość zapisywana do sesji.\nUżywana w kalkulatorach ćwierćfali i Helmholtza.")
+        self.spn_L_mm.setValue(_get_tuning("L_mm", 300.0))
+        row_L.addWidget(QLabel("INT L [mm]:", self))
+        row_L.addWidget(self.spn_L_mm)
+        tuning_lay.addLayout(row_L)
+
+        # D_mm
+        row_D = QHBoxLayout()
+        self.spn_D_mm = QDoubleSpinBox(self)
+        self.spn_D_mm.setRange(50.0, 80.0)
+        self.spn_D_mm.setSingleStep(0.1)
+        self.spn_D_mm.setDecimals(1)
+        self.spn_D_mm.setToolTip("Średnica kanału (runner) D w mm.\nUżywana w kalkulatorach.\nKorekcja końca: L_eff = L + 0.6·D.")
+        self.spn_D_mm.setValue(_get_tuning("D_mm", 50.0))
+        row_D.addWidget(QLabel("INT D [mm]:", self))
+        row_D.addWidget(self.spn_D_mm)
+        tuning_lay.addLayout(row_D)
+
+        # V_plenum_cc
+        row_V = QHBoxLayout()
+        self.spn_V_plenum_cc = QDoubleSpinBox(self)
+        self.spn_V_plenum_cc.setRange(1000.0, 8000.0)
+        self.spn_V_plenum_cc.setSingleStep(10.0)
+        self.spn_V_plenum_cc.setDecimals(0)
+        self.spn_V_plenum_cc.setToolTip("Objętość plenum w cm³.\nUżywana w kalkulatorze Helmholtza.")
+        self.spn_V_plenum_cc.setValue(_get_tuning("V_plenum_cc", 3500.0))
+        row_V.addWidget(QLabel("Plenum [cc]:", self))
+        row_V.addWidget(self.spn_V_plenum_cc)
+        tuning_lay.addLayout(row_V)
+
+        # n_harm
+        row_n = QHBoxLayout()
+        self.cmb_n_harm = QComboBox(self)
+        self.cmb_n_harm.addItems(["1", "2", "3"])
+        n_harm_val = int(_get_tuning("n_harm", 2))
+        self.cmb_n_harm.setCurrentIndex(max(0, min(2, n_harm_val - 1)))
+        self.cmb_n_harm.setToolTip("Harmoniczna ćwierćfali (n):\n1 = podst., 2 = 2. harmoniczna itd.\nPrzybliżenie akustyczne.")
+        row_n.addWidget(QLabel("n_harm:", self))
+        row_n.addWidget(self.cmb_n_harm)
+        tuning_lay.addLayout(row_n)
+
+        # afr (opcjonalnie)
+        row_afr = QHBoxLayout()
+        self.spn_afr = QDoubleSpinBox(self)
+        self.spn_afr.setRange(8.0, 20.0)
+        self.spn_afr.setSingleStep(0.1)
+        self.spn_afr.setDecimals(2)
+        self.spn_afr.setToolTip("AFR (Air-Fuel Ratio).\nTylko do zapisu w tuning, nie wpływa na HP.")
+        self.spn_afr.setValue(_get_tuning("afr", 12.8))
+        row_afr.addWidget(QLabel("AFR:", self))
+        row_afr.addWidget(self.spn_afr)
+        tuning_lay.addLayout(row_afr)
+
+        # bsfc (opcjonalnie)
+        row_bsfc = QHBoxLayout()
+        self.spn_bsfc = QDoubleSpinBox(self)
+        self.spn_bsfc.setRange(0.30, 0.80)
+        self.spn_bsfc.setSingleStep(0.01)
+        self.spn_bsfc.setDecimals(3)
+        self.spn_bsfc.setToolTip("BSFC [lb/HP·h].\nTylko do zapisu w tuning, nie wpływa na HP.")
+        self.spn_bsfc.setValue(_get_tuning("bsfc", 0.50))
+        row_bsfc.addWidget(QLabel("BSFC:", self))
+        row_bsfc.addWidget(self.spn_bsfc)
+        tuning_lay.addLayout(row_bsfc)
+
+        # Status line
+        self.lbl_tuning_status = QLabel("", self)
+        tuning_lay.addWidget(self.lbl_tuning_status)
+
+        # --- Kalkulatory ---
+        calc_box = QGroupBox("Kalkulatory", self)
+        calc_lay = QVBoxLayout(calc_box)
+        self.lbl_L_recommended = QLabel("—", self)
+        self.lbl_rpm_for_L = QLabel("—", self)
+        self.lbl_helmholtz_f = QLabel("—", self)
+        self.lbl_helmholtz_rpm = QLabel("—", self)
+        calc_lay.addWidget(QLabel("Ćwierćfala (L zalecane) [mm]:", self))
+        calc_lay.addWidget(self.lbl_L_recommended)
+        calc_lay.addWidget(QLabel("Ćwierćfala (rpm dla L_mm) [rpm]:", self))
+        calc_lay.addWidget(self.lbl_rpm_for_L)
+        calc_lay.addWidget(QLabel("Helmholtz f [Hz]:", self))
+        calc_lay.addWidget(self.lbl_helmholtz_f)
+        calc_lay.addWidget(QLabel("rpm≈ (wg f) [rpm]:", self))
+        calc_lay.addWidget(self.lbl_helmholtz_rpm)
+
+        tuning_lay.addWidget(calc_box)
+        root.addWidget(tuning_box)
+
         actions = QHBoxLayout()
         self.btn_save_session = QPushButton("Zapisz Session JSON…", self)
         self.btn_save_results = QPushButton("Zapisz Results JSON…", self)
@@ -160,11 +269,20 @@ class StepReport(QWidget):
         actions.addStretch(1)
         root.addLayout(actions)
 
+
+
         self.btn_save_session.clicked.connect(self._save_session)
         self.btn_save_results.clicked.connect(self._save_results)
         self.btn_export_csv.clicked.connect(self._export_csv)
 
-        # React to any HP param changes
+        # --- All signal connections and initial sync at the end of __init__ ---
+        self.spn_L_mm.valueChanged.connect(self._on_tuning_changed)
+        self.spn_D_mm.valueChanged.connect(self._on_tuning_changed)
+        self.spn_V_plenum_cc.valueChanged.connect(self._on_tuning_changed)
+        self.cmb_n_harm.currentIndexChanged.connect(self._on_tuning_changed)
+        self.spn_afr.valueChanged.connect(self._on_tuning_changed)
+        self.spn_bsfc.valueChanged.connect(self._on_tuning_changed)
+
         for w in (
             self.rb_mode_a,
             self.rb_mode_b,
@@ -187,7 +305,150 @@ class StepReport(QWidget):
                 except Exception:
                     pass
 
+        self._sync_tuning_from_state()
         self._refresh()
+
+        # --- All signal connections and initial sync at the end of __init__ ---
+        self.spn_L_mm.valueChanged.connect(self._on_tuning_changed)
+        self.spn_D_mm.valueChanged.connect(self._on_tuning_changed)
+        self.spn_V_plenum_cc.valueChanged.connect(self._on_tuning_changed)
+        self.cmb_n_harm.currentIndexChanged.connect(self._on_tuning_changed)
+        self.spn_afr.valueChanged.connect(self._on_tuning_changed)
+        self.spn_bsfc.valueChanged.connect(self._on_tuning_changed)
+
+        for w in (
+            self.rb_mode_a,
+            self.rb_mode_b,
+            self.ed_rpm_start,
+            self.ed_rpm_stop,
+            self.ed_rpm_step,
+            self.ed_cfm_per_hp,
+            self.ed_afr,
+            self.ed_lambda,
+            self.ed_bsfc,
+            self.rb_rho_bench,
+            self.rb_rho_fixed,
+            self.ed_loss_pct,
+        ):
+            try:
+                w.clicked.connect(self._refresh)  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    w.textChanged.connect(self._refresh)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+
+        self._sync_tuning_from_state()
+        self._refresh()
+
+
+
+
+    def _sync_tuning_from_state(self) -> None:
+        """Load tuning values from state into widgets (no signal cascade)."""
+        try:
+            d = self.state.tuning.get("intake_calc", {})
+            if isinstance(d, dict):
+                # L_mm
+                L = d.get("L_mm")
+                if L is not None:
+                    self.spn_L_mm.blockSignals(True)
+                    self.spn_L_mm.setValue(float(L))
+                    self.spn_L_mm.blockSignals(False)
+                # D_mm
+                D = d.get("D_mm")
+                if D is not None:
+                    self.spn_D_mm.blockSignals(True)
+                    self.spn_D_mm.setValue(float(D))
+                    self.spn_D_mm.blockSignals(False)
+                # V_plenum_cc
+                V = d.get("V_plenum_cc")
+                if V is not None:
+                    self.spn_V_plenum_cc.blockSignals(True)
+                    self.spn_V_plenum_cc.setValue(float(V))
+                    self.spn_V_plenum_cc.blockSignals(False)
+                # n_harm
+                n = d.get("n_harm")
+                if n is not None:
+                    idx = max(0, min(2, int(n) - 1))
+                    self.cmb_n_harm.blockSignals(True)
+                    self.cmb_n_harm.setCurrentIndex(idx)
+                    self.cmb_n_harm.blockSignals(False)
+                # afr
+                afr = d.get("afr")
+                if afr is not None:
+                    self.spn_afr.blockSignals(True)
+                    self.spn_afr.setValue(float(afr))
+                    self.spn_afr.blockSignals(False)
+                # bsfc
+                bsfc = d.get("bsfc")
+                if bsfc is not None:
+                    self.spn_bsfc.blockSignals(True)
+                    self.spn_bsfc.setValue(float(bsfc))
+                    self.spn_bsfc.blockSignals(False)
+        except Exception:
+            pass
+
+    def _on_tuning_changed(self) -> None:
+        try:
+            curr = dict(self.state.tuning.get("intake_calc", {}))
+            curr["L_mm"] = float(self.spn_L_mm.value())
+            curr["D_mm"] = float(self.spn_D_mm.value())
+            curr["V_plenum_cc"] = float(self.spn_V_plenum_cc.value())
+            curr["n_harm"] = int(self.cmb_n_harm.currentText())
+            curr["afr"] = float(self.spn_afr.value())
+            curr["bsfc"] = float(self.spn_bsfc.value())
+            self.state.tuning["intake_calc"] = curr
+            self._recompute_tuning_calcs()
+        except Exception:
+            pass
+
+    def _recompute_tuning_calcs(self) -> None:
+        """Recompute and update tuning calculators and status line."""
+        try:
+            from iop_flow.tuning import quarter_wave_L_phys, quarter_wave_rpm_for_L, helmholtz_f_and_rpm
+            # Gather inputs
+            L_mm = float(self.spn_L_mm.value())
+            D_mm = float(self.spn_D_mm.value())
+            V_plenum_cc = float(self.spn_V_plenum_cc.value())
+            n_harm = int(self.cmb_n_harm.currentText())
+            # SI units
+            L_m = L_mm / 1000.0
+            D_m = D_mm / 1000.0
+            V_plenum_m3 = V_plenum_cc * 1e-6
+            # Get T_K from state (Bench & Air) or fallback
+            T_K = 293.15
+            try:
+                if self.state.air and hasattr(self.state.air, "T"):
+                    T_K = float(self.state.air.T)
+            except Exception:
+                pass
+            # Get rpm_target from state (Silnik)
+            rpm_target = 6500.0
+            try:
+                if self.state.engine_target_rpm:
+                    rpm_target = float(self.state.engine_target_rpm)
+            except Exception:
+                pass
+            # Compute
+            L_recommended = quarter_wave_L_phys(rpm_target, n_harm, D_m, T_K)
+            rpm_for_L = quarter_wave_rpm_for_L(L_m, n_harm, D_m, T_K)
+            f_H, rpm_helm = helmholtz_f_and_rpm(D_m, L_m, V_plenum_m3, n_harm, T_K)
+            # Display (rounded)
+            self.lbl_L_recommended.setText(f"{L_recommended*1000:.0f}")
+            self.lbl_rpm_for_L.setText(f"{round(rpm_for_L/10)*10:.0f}")
+            self.lbl_helmholtz_f.setText(f"{f_H:.1f}")
+            self.lbl_helmholtz_rpm.setText(f"{round(rpm_helm/10)*10:.0f}")
+            # Status line
+            from iop_flow import formulas as F
+            a = F.speed_of_sound(T_K)
+            self.lbl_tuning_status.setText(f"a(T)={a:.1f} m/s, n={n_harm}, rpm_target={rpm_target:.0f}")
+        except Exception as e:
+            self.lbl_L_recommended.setText("—")
+            self.lbl_rpm_for_L.setText("—")
+            self.lbl_helmholtz_f.setText("—")
+            self.lbl_helmholtz_rpm.setText("—")
+            self.lbl_tuning_status.setText(f"Błąd: {e}")
 
     def _status_ok(self, msg: str = "OK") -> None:
         try:
@@ -210,6 +471,9 @@ class StepReport(QWidget):
 
     def _refresh(self) -> None:
         try:
+            # Ensure UI reflects latest state.tuning if it changed elsewhere
+            self._sync_tuning_from_state()
+            self._recompute_tuning_calcs()
             data = self._compute()
             out = data["out"]
             series = out.get("series", {})

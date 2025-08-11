@@ -98,7 +98,67 @@ class WizardState:
                 "seat_angle_deg": self.geometry.seat_angle_deg,
                 "seat_width_m": self.geometry.seat_width_m,
             }
+        # Ensure tuning key is present (asdict already includes it, keep explicit per spec)
+        d["tuning"] = dict(self.tuning)
         return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WizardState":
+        s = cls()
+        try:
+            # meta
+            s.meta.update(d.get("meta", {}))
+            # air
+            air = d.get("air")
+            if isinstance(air, dict):
+                try:
+                    s.air = AirConditions(p_tot=float(air["p_tot"]), T=float(air["T"]), RH=float(air.get("RH", 0.0)))
+                except Exception:
+                    s.air = None
+            # engine
+            eng = d.get("engine")
+            if isinstance(eng, dict):
+                try:
+                    s.engine = Engine(displ_L=float(eng["displ_L"]), cylinders=int(eng["cylinders"]), ve=(float(eng["ve"]) if eng.get("ve") is not None else None))
+                except Exception:
+                    s.engine = None
+            # geometry
+            geom = d.get("geometry")
+            if isinstance(geom, dict):
+                try:
+                    s.geometry = Geometry(
+                        bore_m=float(geom["bore_m"]),
+                        valve_int_m=float(geom["valve_int_m"]),
+                        valve_exh_m=float(geom["valve_exh_m"]),
+                        throat_m=float(geom["throat_m"]),
+                        stem_m=float(geom["stem_m"]),
+                        port_volume_cc=(float(geom["port_volume_cc"]) if geom.get("port_volume_cc") is not None else None),
+                        port_length_m=(float(geom["port_length_m"]) if geom.get("port_length_m") is not None else None),
+                        seat_angle_deg=(float(geom["seat_angle_deg"]) if geom.get("seat_angle_deg") is not None else None),
+                        seat_width_m=(float(geom["seat_width_m"]) if geom.get("seat_width_m") is not None else None),
+                    )
+                except Exception:
+                    s.geometry = None
+            # measurements
+            s.measure_intake = [dict(x) for x in d.get("measure_intake", []) if isinstance(x, dict)]
+            s.measure_exhaust = [dict(x) for x in d.get("measure_exhaust", []) if isinstance(x, dict)]
+            # plan
+            s.lifts_intake_mm = [float(x) for x in d.get("lifts_intake_mm", [])]
+            s.lifts_exhaust_mm = [float(x) for x in d.get("lifts_exhaust_mm", [])]
+            s.dp_per_point_inH2O = {tuple(k): float(v) for k, v in d.get("dp_per_point_inH2O", {}).items()} if isinstance(d.get("dp_per_point_inH2O"), dict) else {}
+            s.will_enter_swirl = bool(d.get("will_enter_swirl", s.will_enter_swirl))
+            # CSA
+            s.csa_min_m2 = d.get("csa_min_m2")
+            s.csa_avg_m2 = d.get("csa_avg_m2")
+            s.engine_v_target = d.get("engine_v_target")
+            # results
+            s.results = dict(d.get("results", {}))
+            # tuning (new)
+            s.tuning = dict(d.get("tuning", {}))
+        except Exception:
+            # Keep partial population on error
+            pass
+        return s
 
     # Step 5/6 helpers as methods
     def plan_intake(self) -> List[float]:

@@ -183,6 +183,8 @@ class Session:
     geom: Geometry
     lifts: FlowSeries
     csa: Optional[CSAProfile] = None
+    # Dodatkowa opcjonalna sekcja z kalkulatorów/strojenia (UI). Swobodny JSON.
+    tuning: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         out = {
@@ -195,6 +197,8 @@ class Session:
         }
         if self.csa is not None:
             out["csa"] = self.csa.to_dict()
+        if self.tuning is not None:
+            out["tuning"] = self.tuning
         return out
 
     @classmethod
@@ -207,4 +211,5 @@ class Session:
             geom=Geometry.from_dict(d["geom"]),
             lifts=FlowSeries.from_dict(d["lifts"]),
             csa=CSAProfile.from_dict(d["csa"]) if d.get("csa") else None,
+            tuning=d.get("tuning"),
         )
