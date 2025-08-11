@@ -1,3 +1,4 @@
+from PySide6.QtCore import QTimer
 """Wizard step for Exhaust measurements and helpers (import‑safe)."""
 
 from __future__ import annotations
@@ -64,10 +65,12 @@ class StepExhaust(QWidget):
         counts.addStretch(1)
         left.addLayout(counts)
 
-        # Tuning panel
-        from PySide6.QtWidgets import QDoubleSpinBox, QComboBox
 
-        tuning_box = QGroupBox("Tuning — Wydech", self)
+    tuning_box = QGroupBox("Tuning — Wydech", self)
+
+    # Auto-compute after showing step (after all widgets/signals are set up)
+    QTimer.singleShot(0, lambda: self.sig_valid_changed.emit(True))
+
         tuning_lay = QVBoxLayout(tuning_box)
         left.addWidget(tuning_box)
         tdict = dict(self.state.tuning.get("exhaust_calc", {}))

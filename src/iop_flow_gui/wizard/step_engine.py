@@ -71,7 +71,9 @@ class StepEngine(QWidget):
         for w in (self.ed_displ, self.ed_cyl, self.ed_ve, self.ed_rpm):
             w.textChanged.connect(self._on_changed)
 
-        self._on_changed()
+    self._on_changed()
+    # Auto-compute after showing step
+    QTimer.singleShot(0, self._update_plot)
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002
         # parse

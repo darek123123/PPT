@@ -1,3 +1,4 @@
+from PySide6.QtCore import QTimer
 from __future__ import annotations
 
 from typing import Optional, Any, List, Dict
@@ -78,7 +79,9 @@ class StepCSA(QWidget):
         root.addLayout(right, 3)
 
         # Wire
-        self.btn_compute.clicked.connect(self._compute)
+    self.btn_compute.clicked.connect(self._compute)
+    # Auto-compute after showing step
+    QTimer.singleShot(0, self._compute)
         for ed in (self.ed_min, self.ed_avg, self.ed_vt):
             ed.textChanged.connect(self._on_changed)  # type: ignore[arg-type]
 

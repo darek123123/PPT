@@ -43,7 +43,9 @@ class StepValidate(QWidget):
         root.addLayout(actions)
 
         self.btn_recompute.clicked.connect(self._recompute)
-        self._recompute()
+    self._recompute()
+    # Auto-compute after showing step
+    self.sig_valid_changed.emit(True)
 
     def _add_item(self, level: str, text: str) -> None:
         icon = self.style().standardIcon(

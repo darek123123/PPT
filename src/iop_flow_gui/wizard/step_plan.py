@@ -1,3 +1,4 @@
+from PySide6.QtCore import QTimer
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Tuple
@@ -75,17 +76,19 @@ class StepPlan(QWidget):
         self.plot = MplCanvas()
         right.addWidget(self.plot)
 
-        # wiring
-        self.btn_gen_i.clicked.connect(lambda: self._gen("intake"))
-        self.btn_gen_e.clicked.connect(lambda: self._gen("exhaust"))
-        self.btn_copy.clicked.connect(self._copy_int_to_exh)
-        self.btn_clear.clicked.connect(self._clear)
-        self.tbl_i.itemChanged.connect(lambda *_: self._on_changed())
-        self.tbl_e.itemChanged.connect(lambda *_: self._on_changed())
-        self.chk_swirl.toggled.connect(lambda *_: self._on_changed())
-        # Prefill from state if present; otherwise generate 1..9 mm
-        self._prefill_from_state()
-        self._on_changed()
+    # wiring
+    self.btn_gen_i.clicked.connect(lambda: self._gen("intake"))
+    self.btn_gen_e.clicked.connect(lambda: self._gen("exhaust"))
+    self.btn_copy.clicked.connect(self._copy_int_to_exh)
+    self.btn_clear.clicked.connect(self._clear)
+    self.tbl_i.itemChanged.connect(lambda *_: self._on_changed())
+    self.tbl_e.itemChanged.connect(lambda *_: self._on_changed())
+    self.chk_swirl.toggled.connect(lambda *_: self._on_changed())
+    # Prefill from state if present; otherwise generate 1..9 mm
+    self._prefill_from_state()
+    self._on_changed()
+    # Auto-compute after showing step
+    QTimer.singleShot(0, self._update_plot)
 
     def _grid_inputs(self) -> Optional[Tuple[float, float, float]]:
         try:

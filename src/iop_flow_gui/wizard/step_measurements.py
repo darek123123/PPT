@@ -1,3 +1,4 @@
+from PySide6.QtCore import QTimer
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -77,8 +78,10 @@ class _SideTable(QWidget):
         self.table.itemChanged.connect(self._on_changed)
         self.table.viewport().installEventFilter(self)
 
-        self._load_from_state()
-        self._update_counts()
+    self._load_from_state()
+    self._update_counts()
+    # Auto-compute after showing step
+    QTimer.singleShot(0, self.sig_changed.emit)
 
     def eventFilter(self, obj, event):  # type: ignore[override]
         if obj is self.table.viewport() and event.type() == QEvent.KeyPress:

@@ -283,63 +283,90 @@ class WizardState:
 
     # Presets
     def apply_defaults_preset(self) -> None:
-        """Populate wizard state with a realistic default configuration and data."""
+        """Populate wizard state with Honda K20A2 preset from data/preset_k20a2.json."""
+        import json
+        import os
+        from iop_flow.schemas import AirConditions, Engine, Geometry
+        preset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "preset_k20a2.json")
+        with open(preset_path, "r", encoding="utf-8") as f:
+            preset = json.load(f)
+
         # Meta
-        self.meta.update(
-            {
-                "project_name": "2.0L head (preset)",
-                "client": "Example",
-                "date_iso": "",
-                "mode": "baseline",
-                "display_units": "workshop_pl",
-                "notes": None,
-            }
+        self.meta.update({
+            "project_name": "Honda K20A2 PRB (preset)",
+            "client": "Preset",
+            "date_iso": "",
+            "mode": "baseline",
+            "display_units": "workshop_pl",
+            "notes": None,
+        })
+
+        # Air/Bench
+        air = preset["air"]
+        self.air_dp_ref_inH2O = air.get("dp_ref", 28.0)
+        self.air_dp_meas_inH2O = air.get("dp_meas", 28.0)
+        self.air = AirConditions(
+            p_tot=air.get("p_tot", 101325),
+            T=F.C_to_K(air.get("T", 20.0)),
+            RH=air.get("RH", 0.0),
         )
-        # Bench & Air
-        self.air_dp_ref_inH2O = 28.0
-        self.air_dp_meas_inH2O = 28.0
-        self.air = AirConditions(p_tot=101_325.0, T=F.C_to_K(20.0), RH=0.0)
+
         # Engine
-        self.engine = Engine(displ_L=2.0, cylinders=4, ve=0.95)
-        self.engine_target_rpm = 6500
-        # Geometry (mm -> m)
-        self.geometry = Geometry(
-            bore_m=86.0 / 1000.0,
-            valve_int_m=34.0 / 1000.0,
-            valve_exh_m=29.0 / 1000.0,
-            throat_m=27.0 / 1000.0,
-            stem_m=7.0 / 1000.0,
-            port_volume_cc=220.0,
-            port_length_m=150.0 / 1000.0,
-            seat_angle_deg=45.0,
-            seat_width_m=1.5 / 1000.0,
+        engine = preset["engine"]
+        self.engine = Engine(
+            displ_L=engine.get("displ", 2.0),
+            cylinders=engine.get("cyl", 4),
+            ve=engine.get("VE", 0.95),
         )
-        # Plan lifty 1..9 mm, dp 28"
-        self.lifts_intake_mm = [float(x) for x in range(1, 10)]
-        self.lifts_exhaust_mm = [float(x) for x in range(1, 10)]
+        self.engine_target_rpm = engine.get("target_rpm", 7500)
+
+        # Geometry
+        geom = preset["geometry"]
+        self.geometry = Geometry(
+            bore_m=geom.get("bore", 86.0) / 1000.0,
+            valve_int_m=geom.get("intake_valve", 35.0) / 1000.0,
+            valve_exh_m=geom.get("exhaust_valve", 30.0) / 1000.0,
+            throat_m=geom.get("intake_valve", 35.0) * 0.85 / 1000.0,  # estimate throat as 85% of valve
+            stem_m=geom.get("stem", 5.5) / 1000.0,
+            port_volume_cc=geom.get("port_volume_int", 225.0),
+            port_length_m=geom.get("port_len", 150.0) / 1000.0,
+            seat_angle_deg=geom.get("seat_angle", 45.0),
+            seat_width_m=geom.get("seat_width", 1.5) / 1000.0,
+        )
+
+        # Plan
+        plan = preset["plan"]
+        lifts = plan.get("lifts_mm", [float(x) for x in range(1, 13)])
+        self.lifts_intake_mm = list(lifts)
+        self.lifts_exhaust_mm = list(lifts)
         self.dp_per_point_inH2O = {}
-        for lift in self.lifts_intake_mm:
-            self.dp_per_point_inH2O[("intake", round(lift, 3))] = 28.0
-        for lift in self.lifts_exhaust_mm:
-            self.dp_per_point_inH2O[("exhaust", round(lift, 3))] = 28.0
+        for lift in lifts:
+            self.dp_per_point_inH2O[("intake", round(lift, 3))] = self.air_dp_ref_inH2O
+            self.dp_per_point_inH2O[("exhaust", round(lift, 3))] = self.air_dp_ref_inH2O
         self.will_enter_swirl = True
-        # Measurements default example values (CFM @ 28"). Intake with swirl RPM; Exhaust = 0.78 * intake
-        int_q = [22, 35, 48, 60, 70, 78, 84, 83, 82]
-        int_sw = [200, 300, 400, 500, 600, 700, 820, 900, 950]
+
+        # Measurements (INT/EXH CFM @ 28")
+        meas = preset["measurements"]
+        int_cfm = meas["intake"]["cfm_28"]
+        exh_cfm = meas["exhaust"]["cfm_28"]
+        int_swirl = [200, 300, 400, 500, 600, 700, 800, 900, 950, 1000, 1050, 1100]  # illustrative
         self.points_int = [
-            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": 28.0, "swirl_rpm": s}
-            for lift, q, s in zip(self.lifts_intake_mm, int_q, int_sw)
+            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": self.air_dp_ref_inH2O, "swirl_rpm": s}
+            for lift, q, s in zip(lifts, int_cfm, int_swirl)
         ]
-        exh_q = [int(round(q * 0.78)) for q in int_q]
         self.points_exh = [
-            {"lift_mm": lift, "q_cfm": qx, "dp_inH2O": 28.0, "swirl_rpm": None}
-            for lift, qx in zip(self.lifts_exhaust_mm, exh_q)
+            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": self.air_dp_ref_inH2O, "swirl_rpm": None}
+            for lift, q in zip(lifts, exh_cfm)
         ]
-        # Apply into measurement buffers
         self.measure_intake = [dict(r) for r in self.points_int]
         self.measure_exhaust = [dict(r) for r in self.points_exh]
-        # CSA and target velocity
-        self.set_csa_from_ui(min_csa_mm2=520.0, avg_csa_mm2=600.0, v_target=100.0)
+
+        # CSA
+        csa = preset["csa"]
+        self.set_csa_from_ui(min_csa_mm2=csa.get("min_csa", 540), avg_csa_mm2=csa.get("avg_csa", 625), v_target=None)
+
+        # Tuning
+        self.tuning = dict(preset.get("tuning", {}))
 
 
 # Validators
