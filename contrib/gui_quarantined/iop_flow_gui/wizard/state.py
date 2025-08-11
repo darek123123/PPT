@@ -287,16 +287,28 @@ class WizardState:
 
     # Presets
     def apply_defaults_preset(self) -> None:
-        """Populate wizard state with Honda K20A2 preset from data/preset_k20a2.json."""
+        """Populate wizard state with Honda K20A2 preset.
+
+        Prefer builtin iop_flow_core preset via importlib.resources; fall back to legacy
+        project data file if core preset is unavailable (dev/editable installs).
+        """
         import json
         from pathlib import Path
         from iop_flow.schemas import AirConditions, Engine, Geometry
-        # src/iop_flow_gui/wizard/state.py -> parents[3] == project root
-        root = Path(__file__).resolve().parents[3]
-        preset_path = root / "data" / "preset_k20a2.json"
-        assert preset_path.exists(), f"preset_k20a2.json not found at {preset_path}"
-        with preset_path.open("r", encoding="utf-8") as f:
-            preset = json.load(f)
+
+        preset: dict
+        try:
+            # Try new core preset loader first
+            from iop_flow_core import load_preset_json
+
+            preset = load_preset_json("k20a2")  # type: ignore[assignment]
+        except Exception:
+            # Fallback to legacy path in repo
+            root = Path(__file__).resolve().parents[3]
+            preset_path = root / "data" / "preset_k20a2.json"
+            assert preset_path.exists(), f"preset_k20a2.json not found at {preset_path}"
+            with preset_path.open("r", encoding="utf-8") as f:
+                preset = json.load(f)
 
         # Meta
         self.meta.update({

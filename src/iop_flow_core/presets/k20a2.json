@@ -1,0 +1,54 @@
+{
+  "air": {
+    "dp_ref": 28.0,
+    "dp_meas": 28.0,
+    "T": 20.0,
+    "p_tot": 101325,
+    "RH": 0.0
+  },
+  "engine": {
+    "displ": 2.0,
+    "cyl": 4,
+    "VE": 0.95,
+    "target_rpm": 7500
+  },
+  "geometry": {
+    "bore": 86.0,
+    "intake_valve": 35.0,
+    "exhaust_valve": 30.0,
+    "stem": 5.5,
+    "seat_angle": 45.0,
+    "seat_width": 1.5,
+    "port_volume_int": 225.0,
+    "port_len": 150.0
+  },
+  "plan": {
+    "lifts_mm": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+  },
+  "measurements": {
+    "intake": {
+      "cfm_28": [36, 68, 98, 124, 146, 163, 175, 183, 188],
+      "estimated": false
+    },
+    "exhaust": {
+      "cfm_28": [28, 53, 76, 97, 114, 127, 136, 143, 147],
+      "estimated": true
+    }
+  },
+  "swirl": {
+    "rpm": [200, 400, 600, 900],
+    "illustrative": true
+  },
+  "csa": {
+    "min_csa": 540,
+    "avg_csa": 625,
+    "note": "zalecany realny pomiar"
+  },
+  "tuning": {
+    "intake": { "L_mm": 500, "D_mm": 60, "V_plenum_cc": 4000, "n_harm": 2 },
+    "exhaust": { "L_mm": 500, "D_mm": 60, "n_harm": 2, "v_target": 70 },
+    "afr": 13.0,
+    "bsfc": 0.50,
+    "cfm_per_hp": 1.74
+  }
+}
