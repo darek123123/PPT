@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from iop_flow.api import run_all
 from .state import WizardState, parse_rows
 from ..widgets.mpl_canvas import MplCanvas
+from iop_flow import formulas as F
 
 
 class StepExhaust(QWidget):
@@ -27,6 +28,7 @@ class StepExhaust(QWidget):
         super().__init__()
         self.state = state
 
+        # Root layout
         root = QHBoxLayout(self)
 
         # Left: controls and table
@@ -44,7 +46,7 @@ class StepExhaust(QWidget):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["lift_mm", "q_cfm", "dp_inH2O", "swirl_rpm"])
-        from PySide6.QtWidgets import QAbstractItemView
+        from PySide6.QtWidgets import QAbstractItemView  # local import
         self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.table.setSelectionMode(QAbstractItemView.ContiguousSelection)
@@ -69,7 +71,7 @@ class StepExhaust(QWidget):
 
         root.addLayout(left, 2)
 
-        # Right: E/I results
+        # Right: E/I results and CSA
         right = QVBoxLayout()
         # Info row with corner notice
         info_row = QHBoxLayout()
@@ -90,11 +92,33 @@ class StepExhaust(QWidget):
         self.lbl_alert = QLabel("", self)
         self.lbl_alert.setStyleSheet("color: red; font-weight: bold;")
         self.lbl_corner = QLabel("", self)
-        self.lbl_corner.setStyleSheet("color: #a00; font-style: italic;")
+        self.lbl_corner.setStyleSheet("color: #666; font-style: italic;")
         self.lbl_corner.setAlignment(Qt.AlignRight)
         right.addWidget(self.lbl_ei)
         right.addWidget(self.lbl_alert)
         right.addWidget(self.lbl_corner)
+
+        # CSA selection group
+        from PySide6.QtWidgets import QGroupBox, QLineEdit
+        csa_box = QGroupBox("Primary/Collector CSA", self)
+        csa_box.setToolTip("A_req = Q_exh_peak / v_target; Q_exh_peak z EXH (max z Q* @ ref)")
+        csa_layout = QVBoxLayout(csa_box)
+        row = QHBoxLayout()
+        self.ed_v_exh = QLineEdit(self)
+        self.ed_v_exh.setPlaceholderText("v_exh_target [m/s] (np. 70)")
+        self.ed_v_exh.setText("70")
+        row.addWidget(QLabel("v_target:", self))
+        row.addWidget(self.ed_v_exh)
+        row.addStretch(1)
+        csa_layout.addLayout(row)
+        row2 = QHBoxLayout()
+        self.lbl_A_req = QLabel("A_req = — mm²", self)
+        self.lbl_d_eq = QLabel("d_eq = — mm", self)
+        row2.addWidget(self.lbl_A_req)
+        row2.addWidget(self.lbl_d_eq)
+        row2.addStretch(1)
+        csa_layout.addLayout(row2)
+        right.addWidget(csa_box)
 
         root.addLayout(right, 3)
 
@@ -104,7 +128,9 @@ class StepExhaust(QWidget):
         self.btn_clear.clicked.connect(self._clear)
         self.table.itemChanged.connect(self._on_changed)
         self.btn_compute.clicked.connect(self._compute)
+        self.ed_v_exh.textChanged.connect(lambda *_: self._update_csa_numbers())
 
+        # Init
         self._load_from_state()
         self._update_counts()
         self._emit_valid()
@@ -284,6 +310,8 @@ class StepExhaust(QWidget):
             self.lbl_alert.setText("")
             self.lbl_corner.setText("Brak danych wydechu — wykres niedostępny (INFO)")
         self.lbl_ei.setText(txt)
+        # Update CSA numbers when we have fresh series
+        self._update_csa_numbers(result)
 
     def _show_info(self) -> None:
         QMessageBox.information(
@@ -295,3 +323,46 @@ class StepExhaust(QWidget):
                 "Uwaga: jeśli brak danych EXH, wykres jest niedostępny."
             ),
         )
+
+    def _update_csa_numbers(self, result: Optional[Dict[str, Any]] = None) -> None:
+        try:
+            v_txt = (self.ed_v_exh.text() or "70").replace(",", ".")
+            v_target = float(v_txt)
+            if v_target <= 0:
+                raise ValueError
+        except Exception:
+            self.lbl_A_req.setText("A_req = — mm²")
+            self.lbl_d_eq.setText("d_eq = — mm")
+            return
+        if result is None:
+            try:
+                session = self.state.build_session_for_run_all()
+                result = run_all(
+                    session,
+                    dp_ref_inH2O=self.state.air_dp_ref_inH2O or 28.0,
+                    a_ref_mode="eff",
+                    eff_mode="smoothmin",
+                    engine_v_target=(self.state.engine_v_target or 100.0),
+                )
+            except Exception:
+                result = None
+        q_peak = 0.0
+        try:
+            ex = (result or {}).get("series", {}).get("exhaust", [])  # type: ignore[union-attr]
+            if ex:
+                q_peak = max(float(r.get("q_m3s_ref") or 0.0) for r in ex)
+        except Exception:
+            q_peak = 0.0
+        if q_peak > 0.0:
+            try:
+                A_req = F.header_csa_required(q_peak, v_target)
+                A_mm2 = A_req * 1e6
+                d_eq = (4.0 * A_req / 3.141592653589793) ** 0.5 * 1000.0
+                self.lbl_A_req.setText(f"A_req = {A_mm2:.0f} mm²")
+                self.lbl_d_eq.setText(f"d_eq = {d_eq:.1f} mm")
+            except Exception:
+                self.lbl_A_req.setText("A_req = — mm²")
+                self.lbl_d_eq.setText("d_eq = — mm")
+        else:
+            self.lbl_A_req.setText("A_req = — mm²")
+            self.lbl_d_eq.setText("d_eq = — mm")

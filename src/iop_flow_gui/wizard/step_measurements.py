@@ -331,10 +331,59 @@ class StepMeasurements(QWidget):
         self.lbl_ei = QLabel("", self)
         right.addWidget(self.lbl_ei)
 
+        # Pitot mini-panel
+        pit_row = QVBoxLayout()
+        pit_group = QHBoxLayout()
+        from PySide6.QtWidgets import QLineEdit, QGroupBox
+
+        gb = QGroupBox("Pitot (lokalna prędkość)", self)
+        gb_l = QVBoxLayout(gb)
+        row1 = QHBoxLayout()
+        self.ed_pit_dp = QLineEdit(self)
+        self.ed_pit_T = QLineEdit(self)
+        self.ed_pit_C = QLineEdit(self)
+        self.ed_pit_dp.setPlaceholderText("ΔP [inH₂O] (np. 28.0)")
+        self.ed_pit_T.setPlaceholderText("T [°C] (np. 20.0)")
+        self.ed_pit_C.setPlaceholderText("C_probe (np. 1.00)")
+        self.ed_pit_dp.setToolTip("Różnica ciśnień Pitota (statyczne–całkowite)")
+        self.ed_pit_C.setToolTip("Współczynnik kalibracyjny sondy")
+        # defaults
+        self.ed_pit_dp.setText("28.0")
+        try:
+            tC = 20.0
+            if self.state.air is not None:
+                tC = float(self.state.air.T - 273.15)
+            self.ed_pit_T.setText(f"{tC:.1f}")
+        except Exception:
+            self.ed_pit_T.setText("20.0")
+        self.ed_pit_C.setText("1.00")
+        row1.addWidget(QLabel("ΔP:", self))
+        row1.addWidget(self.ed_pit_dp)
+        row1.addWidget(QLabel("T:", self))
+        row1.addWidget(self.ed_pit_T)
+        row1.addWidget(QLabel("C_probe:", self))
+        row1.addWidget(self.ed_pit_C)
+        gb_l.addLayout(row1)
+        row2 = QHBoxLayout()
+        self.lbl_pit_V = QLabel("V = — m/s", self)
+        self.lbl_pit_Mach = QLabel("Mach = —", self)
+        self.btn_pit_calc = QPushButton("Oblicz", self)
+        row2.addWidget(self.lbl_pit_V)
+        row2.addWidget(self.lbl_pit_Mach)
+        row2.addStretch(1)
+        row2.addWidget(self.btn_pit_calc)
+        gb_l.addLayout(row2)
+        pit_row.addWidget(gb)
+        right.addLayout(pit_row)
+
         root.addLayout(left, 2)
         root.addLayout(right, 3)
 
         self.btn_compute.clicked.connect(self._recompute)
+        self.btn_pit_calc.clicked.connect(self._compute_pitot)
+        # Make local nav buttons mirror wizard navigation (duplicates of global nav)
+        self.btn_back.clicked.connect(lambda: getattr(self.window(), "_go_back", lambda: None)())
+        self.btn_next.clicked.connect(lambda: getattr(self.window(), "_go_next", lambda: None)())
         self._on_changed()
         QTimer.singleShot(0, self._recompute)
 
@@ -481,3 +530,19 @@ class StepMeasurements(QWidget):
                 "Q [CFM]* – Przepływ przeliczony do ΔP_ref; wykres w CFM dla czytelności."
             ),
         )
+
+    def _compute_pitot(self) -> None:
+        from iop_flow import formulas as F
+        try:
+            dp_in = float((self.ed_pit_dp.text() or "28.0").replace(",", "."))
+            tC = float((self.ed_pit_T.text() or "20.0").replace(",", "."))
+            C = float((self.ed_pit_C.text() or "1.0").replace(",", "."))
+            dp_pa = F.in_h2o_to_pa(dp_in)
+            rho = F.air_density(F.AirState(self.state.air.p_tot, self.state.air.T, self.state.air.RH)) if self.state.air else 1.204
+            V = F.velocity_pitot(dp_pa, rho, C)
+            Mach = V / F.speed_of_sound(F.C_to_K(tC))
+            self.lbl_pit_V.setText(f"V = {V:.1f} m/s")
+            self.lbl_pit_Mach.setText(f"Mach = {Mach:.3f}")
+        except Exception as e:
+            self.lbl_pit_V.setText("V = — m/s")
+            self.lbl_pit_Mach.setText("Mach = —")

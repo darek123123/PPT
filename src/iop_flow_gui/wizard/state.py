@@ -70,6 +70,9 @@ class WizardState:
     points_int: List[Dict[str, Any]] = field(default_factory=list)
     points_exh: List[Dict[str, Any]] = field(default_factory=list)
 
+    # Aggregated results from steps (e.g., HP)
+    results: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         if isinstance(self.air, AirConditions):

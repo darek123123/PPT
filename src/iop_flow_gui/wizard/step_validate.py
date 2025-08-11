@@ -107,9 +107,12 @@ class StepValidate(QWidget):
                     mach = mach_at_min_csa_for_series(
                         series_intake, self.state.csa_min_m2, session.air
                     )  # type: ignore[arg-type]
-                    # Alert only if strictly above 0.60
-                    if any((m is not None and float(m) > 0.60) for m in mach):
-                        self._add_item("WARN", "Wysoki Mach w min-CSA (>0.60)")
+                    over60 = any((m is not None and float(m) > 0.60) for m in mach)
+                    over70 = any((m is not None and float(m) > 0.70) for m in mach)
+                    if over70:
+                        self._add_item("ERROR", "Mach@minCSA > 0.70 — bardzo wysoko")
+                    elif over60:
+                        self._add_item("WARN", "Mach@minCSA > 0.60 — wysoko")
                 else:
                     self._add_item("INFO", "Brak serii Intake — Mach@minCSA pominięty")
         except Exception:
@@ -130,5 +133,20 @@ class StepValidate(QWidget):
             rows_exh = self.state.measure_exhaust
             if not rows_exh:
                 self._add_item("INFO", "Brak danych exhaust — E/I pominięte")
+
+        # RPM capability vs target warnings
+        try:
+            if out is not None:
+                eng = out.get("engine", {})
+                target = self.state.engine_target_rpm if hasattr(self.state, "engine_target_rpm") else None
+                rpm_flow = eng.get("rpm_flow_limit")
+                rpm_csa = eng.get("rpm_from_csa")
+                if target:
+                    if rpm_flow is not None and rpm_flow < 0.8 * float(target):
+                        self._add_item("WARN", "RPM_flow_limit < 0.8×target")
+                    if rpm_csa is not None and rpm_csa < 0.8 * float(target):
+                        self._add_item("WARN", "RPM_from_CSA < 0.8×target")
+        except Exception:
+            pass
 
         self.sig_valid_changed.emit(True)
