@@ -298,9 +298,81 @@ class StepMeasurements(QWidget):
         self.tab_exhaust.sig_changed.connect(self._on_changed)
         self.tabs.addTab(self.tab_intake, "INTAKE")
         self.tabs.addTab(self.tab_exhaust, "EXHAUST")
+
+        # Iterator tab (L sweep → RPM)
+        from PySide6.QtWidgets import QGroupBox, QDoubleSpinBox, QComboBox
+
+        self.tab_iterator = QWidget(self)
+        iter_lay = QVBoxLayout(self.tab_iterator)
+        box = QGroupBox("Iterator L→RPM", self.tab_iterator)
+        box_lay = QVBoxLayout(box)
+        # Row inputs
+        row1_iter = QHBoxLayout()
+        box_lay.addLayout(row1_iter)
+        self.spn_L_min = QDoubleSpinBox(self)
+        self.spn_L_min.setRange(50, 1200)
+        self.spn_L_min.setValue(250)
+        self.spn_L_max = QDoubleSpinBox(self)
+        self.spn_L_max.setRange(50, 1200)
+        self.spn_L_max.setValue(600)
+        self.spn_L_step = QDoubleSpinBox(self)
+        self.spn_L_step.setRange(1, 200)
+        self.spn_L_step.setValue(10)
+        for w in (self.spn_L_min, self.spn_L_max, self.spn_L_step):
+            w.setDecimals(0)
+        row1_iter.addWidget(QLabel("L_min", self))
+        row1_iter.addWidget(self.spn_L_min)
+        row1_iter.addWidget(QLabel("L_max", self))
+        row1_iter.addWidget(self.spn_L_max)
+        row1_iter.addWidget(QLabel("step", self))
+        row1_iter.addWidget(self.spn_L_step)
+        row1_iter.addStretch(1)
+        # Row 2: n_harm, D_mm, T_int, T_exh
+        row2_iter = QHBoxLayout()
+        box_lay.addLayout(row2_iter)
+        self.cmb_iter_n = QComboBox(self)
+        self.cmb_iter_n.addItems(["1", "2", "3"])
+        self.cmb_iter_n.setCurrentIndex(1)
+        self.spn_iter_D = QDoubleSpinBox(self)
+        self.spn_iter_D.setRange(10, 120)
+        self.spn_iter_D.setValue(50)
+        self.spn_iter_D.setDecimals(1)
+        self.spn_iter_D.setSingleStep(0.5)
+        self.spn_iter_T_int = QDoubleSpinBox(self)
+        self.spn_iter_T_int.setRange(250, 500)
+        self.spn_iter_T_int.setValue(293)
+        self.spn_iter_T_int.setDecimals(0)
+        self.spn_iter_T_exh = QDoubleSpinBox(self)
+        self.spn_iter_T_exh.setRange(400, 1200)
+        self.spn_iter_T_exh.setValue(700)
+        self.spn_iter_T_exh.setDecimals(0)
+        row2_iter.addWidget(QLabel("n_harm", self))
+        row2_iter.addWidget(self.cmb_iter_n)
+        row2_iter.addWidget(QLabel("D_mm", self))
+        row2_iter.addWidget(self.spn_iter_D)
+        row2_iter.addWidget(QLabel("T_int[K]", self))
+        row2_iter.addWidget(self.spn_iter_T_int)
+        row2_iter.addWidget(QLabel("T_exh[K]", self))
+        row2_iter.addWidget(self.spn_iter_T_exh)
+        row2_iter.addStretch(1)
+        # Buttons
+        row_btn = QHBoxLayout()
+        box_lay.addLayout(row_btn)
+        self.btn_scan_intake = QPushButton("Skanuj INT", self)
+        self.btn_scan_exhaust = QPushButton("Skanuj EXH", self)
+        row_btn.addWidget(self.btn_scan_intake)
+        row_btn.addWidget(self.btn_scan_exhaust)
+        row_btn.addStretch(1)
+        # Plot canvas
+        self.plot_iter = MplCanvas()
+        self.plot_iter.set_readout_units("L_mm", "RPM")
+        box_lay.addWidget(self.plot_iter)
+        iter_lay.addWidget(box)
+        self.tabs.addTab(self.tab_iterator, "Iterator")
         self.tabs.currentChanged.connect(lambda _: self._recompute())
         left.addWidget(self.tabs)
 
+        # Action buttons
         actions = QHBoxLayout()
         self.btn_compute = QPushButton("Przelicz", self)
         self.btn_back = QPushButton("Wstecz", self)
@@ -311,6 +383,7 @@ class StepMeasurements(QWidget):
         actions.addWidget(self.btn_next)
         left.addLayout(actions)
 
+        # Right side plots/info
         right = QVBoxLayout()
         self.plot_cd = MplCanvas()
         self.plot_q = MplCanvas()
@@ -332,13 +405,12 @@ class StepMeasurements(QWidget):
         right.addWidget(self.lbl_ei)
 
         # Pitot mini-panel
-        pit_row = QVBoxLayout()
-        # group layout defined inside group box
         from PySide6.QtWidgets import QLineEdit, QGroupBox
 
+        pit_row = QVBoxLayout()
         gb = QGroupBox("Pitot (lokalna prędkość)", self)
         gb_l = QVBoxLayout(gb)
-        row1 = QHBoxLayout()
+        row1_p = QHBoxLayout()
         self.ed_pit_dp = QLineEdit(self)
         self.ed_pit_T = QLineEdit(self)
         self.ed_pit_C = QLineEdit(self)
@@ -357,31 +429,34 @@ class StepMeasurements(QWidget):
         except Exception:
             self.ed_pit_T.setText("20.0")
         self.ed_pit_C.setText("1.00")
-        row1.addWidget(QLabel("ΔP:", self))
-        row1.addWidget(self.ed_pit_dp)
-        row1.addWidget(QLabel("T:", self))
-        row1.addWidget(self.ed_pit_T)
-        row1.addWidget(QLabel("C_probe:", self))
-        row1.addWidget(self.ed_pit_C)
-        gb_l.addLayout(row1)
-        row2 = QHBoxLayout()
+        row1_p.addWidget(QLabel("ΔP:", self))
+        row1_p.addWidget(self.ed_pit_dp)
+        row1_p.addWidget(QLabel("T:", self))
+        row1_p.addWidget(self.ed_pit_T)
+        row1_p.addWidget(QLabel("C_probe:", self))
+        row1_p.addWidget(self.ed_pit_C)
+        gb_l.addLayout(row1_p)
+        row2_p = QHBoxLayout()
         self.lbl_pit_V = QLabel("V = — m/s", self)
         self.lbl_pit_Mach = QLabel("Mach = —", self)
         self.btn_pit_calc = QPushButton("Oblicz", self)
-        row2.addWidget(self.lbl_pit_V)
-        row2.addWidget(self.lbl_pit_Mach)
-        row2.addStretch(1)
-        row2.addWidget(self.btn_pit_calc)
-        gb_l.addLayout(row2)
+        row2_p.addWidget(self.lbl_pit_V)
+        row2_p.addWidget(self.lbl_pit_Mach)
+        row2_p.addStretch(1)
+        row2_p.addWidget(self.btn_pit_calc)
+        gb_l.addLayout(row2_p)
         pit_row.addWidget(gb)
         right.addLayout(pit_row)
 
         root.addLayout(left, 2)
         root.addLayout(right, 3)
 
+        # Connections
         self.btn_compute.clicked.connect(self._recompute)
         self.btn_pit_calc.clicked.connect(self._compute_pitot)
-        # Make local nav buttons mirror wizard navigation (duplicates of global nav)
+        self.btn_scan_intake.clicked.connect(lambda: self._run_iterator(side="intake"))
+        self.btn_scan_exhaust.clicked.connect(lambda: self._run_iterator(side="exhaust"))
+        # Mirror wizard navigation
         self.btn_back.clicked.connect(lambda: getattr(self.window(), "_go_back", lambda: None)())
         self.btn_next.clicked.connect(lambda: getattr(self.window(), "_go_next", lambda: None)())
         self._on_changed()
@@ -391,6 +466,32 @@ class StepMeasurements(QWidget):
         self.btn_compute.setEnabled(True)
         self._debounce.start()
         self._emit_valid()
+
+    def _run_iterator(self, side: str) -> None:
+        try:
+            from iop_flow.tuning import sweep_intake_L, sweep_exhaust_L
+            L_min = float(self.spn_L_min.value()); L_max = float(self.spn_L_max.value()); step = float(self.spn_L_step.value())
+            n = int(self.cmb_iter_n.currentText()); D_m = float(self.spn_iter_D.value())/1000.0
+            T_int = float(self.spn_iter_T_int.value()); T_exh = float(self.spn_iter_T_exh.value())
+            rpm_target = float(self.state.engine_target_rpm or 6500)
+            if L_min >= L_max or step <= 0: return
+            if side == "intake":
+                data = sweep_intake_L(L_min, L_max, step, n, D_m, T_int, rpm_target)
+                self.state.tuning["intake_sweep"] = data
+            else:
+                data = sweep_exhaust_L(L_min, L_max, step, n, D_m, T_exh, rpm_target)
+                self.state.tuning["exhaust_sweep"] = data
+            xs = [p[0] for p in data]; ys = [p[1] for p in data]
+            self.plot_iter.clear();
+            label = "INT" if side=="intake" else "EXH"
+            if xs and ys:
+                self.plot_iter.plot_xy(xs, ys, label=label, xlabel="L [mm]", ylabel="RPM", title=f"{label} rpm_for_L")
+            self.plot_iter.render()
+        except Exception:
+            try:
+                self.plot_iter.clear(); self.plot_iter.render()
+            except Exception:
+                pass
 
     def _emit_valid(self) -> None:
         ok_prev = self._prev_steps_ok()

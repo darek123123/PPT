@@ -250,6 +250,8 @@ class StepExhaust(QWidget):
                     d_eq_mm = (4.0 * csa_m2 / 3.141592653589793) ** 0.5 * 1000.0
                 except Exception:
                     pass
+            elif notice == "":
+                notice = "Brak danych – pominięto CSA"
             self.lbl_rpm_for_L.setText(f"rpm dla L: {rpm_for_L:.0f}" if rpm_for_L else "rpm dla L: —")
             self.lbl_L_rec.setText(f"L_rec: {L_rec_mm:.0f} mm" if L_rec_mm else "L_rec: — mm")
             self.lbl_CSA.setText(f"CSA: {csa_mm2:.0f} mm²" if csa_mm2 else "CSA: — mm²")
