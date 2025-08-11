@@ -74,6 +74,57 @@ class StepValidate(QWidget):
             self.sig_valid_changed.emit(False)
             return
 
+        # --- Tuning summary (Step 9) ---
+        try:
+            tuning = self.state.tuning
+            target_rpm = getattr(self.state, "engine_target_rpm", None)
+            info_lines: list[str] = []
+            def fmt_side(name: str, d: Optional[Dict[str, Any]]) -> str:
+                if not d:
+                    return f"{name.upper()}: brak"
+                parts = []
+                for k in ("L_mm", "rpm_for_L", "n_harm", "CSA_req_mm2", "d_eq_mm"):
+                    if d.get(k) is not None:
+                        parts.append(f"{k}={float(d.get(k)):.0f}" if "rpm" in k or k.endswith("_mm") or k.endswith("_mm2") else f"{k}={d.get(k)}")
+                return f"{name.upper()}: " + ", ".join(parts)
+            intake_calc = tuning.get("intake_calc") if isinstance(tuning.get("intake_calc"), dict) else None
+            exhaust_calc = tuning.get("exhaust_calc") if isinstance(tuning.get("exhaust_calc"), dict) else None
+            info_lines.append(fmt_side("intake", intake_calc))
+            info_lines.append(fmt_side("exhaust", exhaust_calc))
+            self._add_item("INFO", "Podsumowanie tuningu: " + " | ".join(info_lines))
+            # WARN conditions
+            def check_rpm(d: Optional[Dict[str, Any]], label: str) -> None:
+                if not d or not target_rpm:
+                    return
+                try:
+                    r = float(d.get("rpm_for_L"))
+                    t = float(target_rpm)
+                    if t > 0 and abs(r - t) / t > 0.25:
+                        self._add_item("WARN", f"{label}: |rpm_for_L - target|/target > 0.25 ({r:.0f} vs {t:.0f})")
+                except Exception:
+                    pass
+            check_rpm(intake_calc, "INTAKE")
+            check_rpm(exhaust_calc, "EXHAUST")
+            # CSA deviation vs min/avg CSA (if available)
+            for d, label in ((intake_calc, "INTAKE"), (exhaust_calc, "EXHAUST")):
+                try:
+                    csa_req = float(d.get("CSA_req_mm2")) if d and d.get("CSA_req_mm2") is not None else None
+                except Exception:
+                    csa_req = None
+                if csa_req is None:
+                    continue
+                try:
+                    csa_min = (self.state.csa_min_m2 or 0.0) * 1e6 if self.state.csa_min_m2 else None
+                    csa_avg = (self.state.csa_avg_m2 or 0.0) * 1e6 if self.state.csa_avg_m2 else None
+                except Exception:
+                    csa_min = csa_avg = None
+                for ref, ref_name in ((csa_min, "minCSA"), (csa_avg, "avgCSA")):
+                    if ref and ref > 0:
+                        if not (0.8 * ref <= csa_req <= 1.2 * ref):
+                            self._add_item("WARN", f"{label}: CSA_req {csa_req:.0f} mm² poza 0.8–1.2×{ref_name} ({ref:.0f} mm²)")
+        except Exception:
+            self._add_item("WARN", "Nie udało się zbudować podsumowania tuningu")
+
         # Basic checks
         if self.state.air and not (0.0 <= self.state.air.RH <= 1.0):
             self._add_item("WARN", "Wilgotność RH poza zakresem [0,1]")

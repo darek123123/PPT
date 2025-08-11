@@ -531,6 +531,34 @@ class StepReport(QWidget):
                 out["hp"] = hp_section
         except Exception:
             pass
+        # Attach tuning (intake/exhaust calc + sweeps) with optional sweep omission if large
+        try:
+            tdict = self.state.tuning
+            tune_payload: dict[str, Any] = {}
+            for key in ("intake_calc", "exhaust_calc"):
+                v = tdict.get(key)
+                if isinstance(v, dict):
+                    tune_payload[key] = v
+            # Sweeps: include only if length reasonable (<= 1000 points)
+            for s_key in ("intake_sweep", "exhaust_sweep"):
+                v = tdict.get(s_key)
+                if isinstance(v, list):
+                    try:
+                        if len(v) <= 1000:
+                            tune_payload[s_key] = v
+                        else:
+                            # Mark omission
+                            tune_payload[s_key + "_omitted"] = {
+                                "count": len(v),
+                                "reason": ">1000 points omitted in Results (present in Session)",
+                            }
+                    except Exception:
+                        pass
+            if tune_payload:
+                out = dict(out)
+                out["tuning"] = tune_payload
+        except Exception:
+            pass
         try:
             self._write_json_pretty(path, out)
             QMessageBox.information(self, "Zapis", f"Wyniki zapisane: {path}")
