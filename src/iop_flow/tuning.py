@@ -201,3 +201,73 @@ def helmholtz_f_and_rpm(
     f_H = (a / (2 * pi)) * sqrt(A / (V_plenum_m3 * L_eff))
     rpm_approx = f_H * 120.0 / n_harm
     return f_H, rpm_approx
+
+
+def exhaust_quarter_wave_L_phys(rpm: float, n_harm: int, D: float, T_exh_K: float) -> float:
+    """
+    Ćwierćfala wydechu: zwraca L_phys [m] dla zadanych parametrów.
+    rpm: docelowe obroty
+    n_harm: harmoniczna (1,2,3...)
+    D: średnica rury [m]
+    T_exh_K: temp. spalin [K]
+    """
+    a_exh = F.speed_of_sound(T_exh_K)
+    f_pulse = rpm / 120.0
+    k = 2 * n_harm - 1
+    f_tune = k * f_pulse
+    if f_tune <= 0:
+        return 0.0
+    L_eff = a_exh / (4.0 * f_tune)
+    L_phys = max(L_eff - 0.6 * D, 0.0)
+    return L_phys
+
+
+def exhaust_quarter_wave_rpm_for_L(L_mm: float, n_harm: int, D: float, T_exh_K: float) -> float:
+    """
+    Odwrotność ćwierćfali wydechu: zwraca rpm dla danej długości L_mm [mm].
+    """
+    a_exh = F.speed_of_sound(T_exh_K)
+    L = L_mm / 1000.0
+    L_eff = L + 0.6 * D
+    k = 2 * n_harm - 1
+    if L_eff <= 0 or k <= 0:
+        return 0.0
+    f_tune = a_exh / (4.0 * L_eff)
+    f_pulse = f_tune / k
+    rpm = f_pulse * 120.0
+    return rpm
+
+
+def collector_csa_from_q(q_m3s: float, v_target: float) -> tuple[float, float]:
+    """
+    Wrapper na header_csa_required: zwraca (CSA_m2, CSA_mm2).
+    """
+    csa_m2 = F.header_csa_required(q_m3s, v_target)
+    csa_mm2 = csa_m2 * 1e6
+    return csa_m2, csa_mm2
+
+
+def sweep_intake_L(L_min_mm: float, L_max_mm: float, step_mm: float, n_harm: int, D: float, T_K: float, rpm_target: float) -> list[tuple[float, float]]:
+    """
+    Generator: [(L_mm, rpm_for_L)] dla zadanych parametrów dolotu.
+    """
+    out = []
+    L = L_min_mm
+    while L <= L_max_mm + 1e-6:
+        rpm = quarter_wave_rpm_for_L(L / 1000.0, n_harm, D, T_K)
+        out.append((L, rpm))
+        L += step_mm
+    return out
+
+
+def sweep_exhaust_L(L_min_mm: float, L_max_mm: float, step_mm: float, n_harm: int, D: float, T_exh_K: float, rpm_target: float) -> list[tuple[float, float]]:
+    """
+    Generator: [(L_mm, rpm_for_L)] dla zadanych parametrów wydechu.
+    """
+    out = []
+    L = L_min_mm
+    while L <= L_max_mm + 1e-6:
+        rpm = exhaust_quarter_wave_rpm_for_L(L, n_harm, D, T_exh_K)
+        out.append((L, rpm))
+        L += step_mm
+    return out

@@ -40,10 +40,11 @@ class StepExhaust(QWidget):
         super().__init__()
         self.state = state
 
+
         # Root layout
         root = QHBoxLayout(self)
 
-        # Left: controls and table
+        # Left: controls, table, and tuning panel
         left = QVBoxLayout()
         btns = QHBoxLayout()
         self.btn_autofill = QPushButton("Autouzupełnij lifty z planu EXH", self)
@@ -65,21 +66,234 @@ class StepExhaust(QWidget):
         self.table.viewport().installEventFilter(self)
         left.addWidget(self.table)
 
-        counts = QHBoxLayout()
-        self.lbl_counts = QLabel("—", self)
-        counts.addWidget(self.lbl_counts)
-        counts.addStretch(1)
-        left.addLayout(counts)
+        # --- Tuning — Wydech panel ---
+        from PySide6.QtWidgets import QDoubleSpinBox, QComboBox
+        tuning_box = QGroupBox("Tuning — Wydech", self)
+        tuning_lay = QVBoxLayout(tuning_box)
+        # Prefill from state or defaults
+        tdict = dict(self.state.tuning.get("exhaust_calc", {}))
+        def _get_tuning(key, default):
+            try:
+                return type(default)(tdict.get(key, default))
+            except Exception:
+                return default
 
-        actions = QHBoxLayout()
-        self.btn_compute = QPushButton("Przelicz", self)
-        self.btn_back = QPushButton("Wstecz", self)
-        self.btn_next = QPushButton("Dalej", self)
-        actions.addWidget(self.btn_compute)
-        actions.addStretch(1)
-        actions.addWidget(self.btn_back)
-        actions.addWidget(self.btn_next)
-        left.addLayout(actions)
+        # L_mm
+        row_L = QHBoxLayout()
+        self.spn_L_mm = QDoubleSpinBox(self)
+        self.spn_L_mm.setRange(100.0, 1200.0)
+        self.spn_L_mm.setSingleStep(1.0)
+        self.spn_L_mm.setDecimals(1)
+        self.spn_L_mm.setToolTip("Długość runnera wydechu L w mm.\nModel ćwierćfali.")
+        self.spn_L_mm.setValue(_get_tuning("L_mm", 450.0))
+        row_L.addWidget(QLabel("L [mm]:", self))
+        row_L.addWidget(self.spn_L_mm)
+        tuning_lay.addLayout(row_L)
+
+        # D_mm
+        row_D = QHBoxLayout()
+        self.spn_D_mm = QDoubleSpinBox(self)
+        self.spn_D_mm.setRange(10.0, 80.0)
+        self.spn_D_mm.setSingleStep(0.1)
+        self.spn_D_mm.setDecimals(1)
+        self.spn_D_mm.setToolTip("Średnica rury wydechowej D w mm.")
+        self.spn_D_mm.setValue(_get_tuning("D_mm", 38.0))
+        row_D.addWidget(QLabel("D [mm]:", self))
+        row_D.addWidget(self.spn_D_mm)
+        tuning_lay.addLayout(row_D)
+
+        # n_harm
+        row_n = QHBoxLayout()
+        self.cmb_n_harm = QComboBox(self)
+        self.cmb_n_harm.addItems(["1", "2", "3"])
+        n_harm_val = int(_get_tuning("n_harm", 2))
+        self.cmb_n_harm.setCurrentIndex(max(0, min(2, n_harm_val - 1)))
+        self.cmb_n_harm.setToolTip("Harmoniczna ćwierćfali (1/3/5…).\nWybierz n=1,2,3.")
+        row_n.addWidget(QLabel("n_harm:", self))
+        row_n.addWidget(self.cmb_n_harm)
+        tuning_lay.addLayout(row_n)
+
+        # T_exh_K
+        row_T = QHBoxLayout()
+        self.spn_T_exh_K = QDoubleSpinBox(self)
+        self.spn_T_exh_K.setRange(400.0, 1200.0)
+        self.spn_T_exh_K.setSingleStep(10.0)
+        self.spn_T_exh_K.setDecimals(1)
+        self.spn_T_exh_K.setToolTip("Temperatura spalin T [K].\na(T) rośnie z temperaturą.")
+        self.spn_T_exh_K.setValue(_get_tuning("T_exh_K", 700.0))
+        row_T.addWidget(QLabel("T_exh [K]:", self))
+        row_T.addWidget(self.spn_T_exh_K)
+        tuning_lay.addLayout(row_T)
+
+        # v_target_ms
+        row_v = QHBoxLayout()
+        self.spn_v_target = QDoubleSpinBox(self)
+        self.spn_v_target.setRange(20.0, 120.0)
+        self.spn_v_target.setSingleStep(1.0)
+        self.spn_v_target.setDecimals(1)
+        self.spn_v_target.setToolTip("Docelowa prędkość gazów w kolektorze [m/s].")
+        self.spn_v_target.setValue(_get_tuning("v_target_ms", 70.0))
+        row_v.addWidget(QLabel("v_target [m/s]:", self))
+        row_v.addWidget(self.spn_v_target)
+        tuning_lay.addLayout(row_v)
+
+        # Outputs (read-only)
+        self.lbl_rpm_for_L = QLabel("rpm dla L: —", self)
+        self.lbl_L_rec = QLabel("L zalecane: — mm", self)
+        self.lbl_CSA = QLabel("CSA: — mm²", self)
+        self.lbl_d_eq = QLabel("d_eq: — mm", self)
+        tuning_lay.addWidget(self.lbl_rpm_for_L)
+        tuning_lay.addWidget(self.lbl_L_rec)
+        tuning_lay.addWidget(self.lbl_CSA)
+        tuning_lay.addWidget(self.lbl_d_eq)
+
+        # Status line
+        self.lbl_tuning_status = QLabel("", self)
+        tuning_lay.addWidget(self.lbl_tuning_status)
+
+        left.addWidget(tuning_box)
+
+
+    actions = QHBoxLayout()
+    self.btn_compute = QPushButton("Przelicz", self)
+    self.btn_back = QPushButton("Wstecz", self)
+    self.btn_next = QPushButton("Dalej", self)
+    actions.addWidget(self.btn_compute)
+    actions.addStretch(1)
+    actions.addWidget(self.btn_back)
+    actions.addWidget(self.btn_next)
+    left.addLayout(actions)
+
+    # Wire up tuning field changes
+    self.spn_L_mm.valueChanged.connect(self._on_tuning_changed)
+    self.spn_D_mm.valueChanged.connect(self._on_tuning_changed)
+    self.cmb_n_harm.currentIndexChanged.connect(self._on_tuning_changed)
+    self.spn_T_exh_K.valueChanged.connect(self._on_tuning_changed)
+    self.spn_v_target.valueChanged.connect(self._on_tuning_changed)
+
+    # Initial compute
+    self._sync_tuning_from_state()
+    self._recompute_tuning_exhaust()
+    def _sync_tuning_from_state(self) -> None:
+        """Load exhaust tuning values from state into widgets (no signal cascade)."""
+        try:
+            d = self.state.tuning.get("exhaust_calc", {})
+            if isinstance(d, dict):
+                # L_mm
+                L = d.get("L_mm")
+                if L is not None:
+                    self.spn_L_mm.blockSignals(True)
+                    self.spn_L_mm.setValue(float(L))
+                    self.spn_L_mm.blockSignals(False)
+                # D_mm
+                D = d.get("D_mm")
+                if D is not None:
+                    self.spn_D_mm.blockSignals(True)
+                    self.spn_D_mm.setValue(float(D))
+                    self.spn_D_mm.blockSignals(False)
+                # n_harm
+                n = d.get("n_harm")
+                if n is not None:
+                    idx = max(0, min(2, int(n) - 1))
+                    self.cmb_n_harm.blockSignals(True)
+                    self.cmb_n_harm.setCurrentIndex(idx)
+                    self.cmb_n_harm.blockSignals(False)
+                # T_exh_K
+                T = d.get("T_exh_K")
+                if T is not None:
+                    self.spn_T_exh_K.blockSignals(True)
+                    self.spn_T_exh_K.setValue(float(T))
+                    self.spn_T_exh_K.blockSignals(False)
+                # v_target_ms
+                v = d.get("v_target_ms")
+                if v is not None:
+                    self.spn_v_target.blockSignals(True)
+                    self.spn_v_target.setValue(float(v))
+                    self.spn_v_target.blockSignals(False)
+        except Exception:
+            pass
+
+    def _on_tuning_changed(self) -> None:
+        try:
+            curr = dict(self.state.tuning.get("exhaust_calc", {}))
+            curr["L_mm"] = float(self.spn_L_mm.value())
+            curr["D_mm"] = float(self.spn_D_mm.value())
+            curr["n_harm"] = int(self.cmb_n_harm.currentText())
+            curr["T_exh_K"] = float(self.spn_T_exh_K.value())
+            curr["v_target_ms"] = float(self.spn_v_target.value())
+            self.state.tuning["exhaust_calc"] = curr
+            self._recompute_tuning_exhaust()
+        except Exception:
+            pass
+
+    def _recompute_tuning_exhaust(self) -> None:
+        """Recompute exhaust tuning outputs and status line."""
+        try:
+            from iop_flow.tuning import exhaust_quarter_wave_rpm_for_L, exhaust_quarter_wave_L_phys, collector_csa_from_q
+            from iop_flow import formulas as F
+            # Inputs
+            L_mm = float(self.spn_L_mm.value())
+            D_mm = float(self.spn_D_mm.value())
+            n_harm = int(self.cmb_n_harm.currentText())
+            T_exh_K = float(self.spn_T_exh_K.value())
+            v_target = float(self.spn_v_target.value())
+            # SI
+            L_m = L_mm / 1000.0
+            D_m = D_mm / 1000.0
+            # Target RPM
+            rpm_target = float(getattr(self.state, "engine_target_rpm", 6500.0) or 6500.0)
+            # Q_exh_peak (m3/s): from results if available, else 0.78*Q_intake_peak
+            Q_exh_peak = 0.0
+            Q_hint = ""
+            try:
+                session = self.state.build_session_for_run_all()
+                result = run_all(
+                    session,
+                    dp_ref_inH2O=self.state.air_dp_ref_inH2O or 28.0,
+                    a_ref_mode="eff",
+                    eff_mode="smoothmin",
+                    engine_v_target=(self.state.engine_target_rpm or 100.0),
+                )
+                ex = (result or {}).get("series", {}).get("exhaust", [])
+                if ex:
+                    Q_exh_peak = max(float(r.get("q_m3s_ref") or 0.0) for r in ex)
+                else:
+                    Q_hint = "Brak pomiarów – użyto szacunku"
+                    # Try intake
+                    intake = (result or {}).get("series", {}).get("intake", [])
+                    if intake:
+                        Q_intake_peak = max(float(r.get("q_m3s_ref") or 0.0) for r in intake)
+                        Q_exh_peak = 0.78 * Q_intake_peak
+            except Exception:
+                Q_hint = "Brak pomiarów – użyto szacunku"
+            # Outputs
+            rpm_for_L = exhaust_quarter_wave_rpm_for_L(L_mm, n_harm, D_m, T_exh_K)
+            L_rec = exhaust_quarter_wave_L_phys(rpm_target, n_harm, D_m, T_exh_K)
+            csa_m2, csa_mm2 = (0.0, 0.0)
+            d_eq = 0.0
+            if Q_exh_peak > 0.0 and v_target > 0.0:
+                csa_m2, csa_mm2 = collector_csa_from_q(Q_exh_peak, v_target)
+                d_eq = (4.0 * csa_m2 / 3.141592653589793) ** 0.5 * 1000.0
+            # Set outputs
+            self.lbl_rpm_for_L.setText(f"rpm dla L: {rpm_for_L:.0f}")
+            self.lbl_L_rec.setText(f"L zalecane: {L_rec*1000:.0f} mm")
+            self.lbl_CSA.setText(f"CSA: {csa_mm2:.0f} mm²")
+            self.lbl_d_eq.setText(f"d_eq: {d_eq:.1f} mm")
+            # Status line
+            a_exh = F.speed_of_sound(T_exh_K)
+            Q_cfm = Q_exh_peak * F.M3S_TO_CFM if Q_exh_peak > 0 else 0.0
+            self.lbl_tuning_status.setText(f"a_exh(T)={a_exh:.1f} m/s; Q_exh_peak={Q_cfm:.1f} CFM; CSA={csa_mm2:.0f} mm²; d_eq={d_eq:.1f} mm")
+            # Hint if no data
+            if Q_hint:
+                self.lbl_corner.setText(Q_hint)
+            else:
+                self.lbl_corner.setText("")
+        except Exception as e:
+            self.lbl_rpm_for_L.setText("rpm dla L: —")
+            self.lbl_L_rec.setText("L zalecane: — mm")
+            self.lbl_CSA.setText("CSA: — mm²")
+            self.lbl_d_eq.setText("d_eq: — mm")
+            self.lbl_tuning_status.setText(f"Błąd: {e}")
 
         root.addLayout(left, 2)
 
