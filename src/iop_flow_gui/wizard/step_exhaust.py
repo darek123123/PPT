@@ -1,3 +1,9 @@
+"""Wizard step for Exhaust measurements and helpers.
+
+This module must be import-safe: no top-level widget creation, QApplication,
+or prints. All UI is constructed inside StepExhaust.__init__.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -18,8 +24,12 @@ from PySide6.QtWidgets import (
 )
 
 from iop_flow.api import run_all
-from .state import WizardState, parse_rows
-from ..widgets.mpl_canvas import MplCanvas
+try:
+    from .state import WizardState, parse_rows
+    from ..widgets.mpl_canvas import MplCanvas
+except ImportError:  # allow direct file import in tests
+    from iop_flow_gui.wizard.state import WizardState, parse_rows  # type: ignore[no-redef]
+    from iop_flow_gui.widgets.mpl_canvas import MplCanvas  # type: ignore[no-redef]
 from iop_flow import formulas as F
 
 
@@ -420,3 +430,11 @@ class StepExhaust(QWidget):
             self.lbl_len_exh.setText(f"L ≈ {L_m*1000.0:.0f} mm; a(T)={a_T:.0f} m/s")
         except Exception:
             self.lbl_len_exh.setText("L ≈ — mm; a(T)=— m/s")
+
+
+__all__ = ["StepExhaust"]
+
+if __name__ == "__main__":
+    # No GUI startup here. Manual testing can be added by the developer,
+    # but importing this module must remain side-effect free.
+    pass

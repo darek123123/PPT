@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
-from .formulas import engine_volumetric_flow, air_density, speed_of_sound
+from .formulas import engine_volumetric_flow, air_density, AirState
 from .schemas import Session
 
 
@@ -75,7 +75,8 @@ def estimate_hp_curve_mode_b(
     displ_L = session.engine.displ_L
     ve = session.engine.ve if session.engine.ve is not None else 1.0
     if rho_mode == "bench" and session.air is not None:
-        rho = air_density(session.air)
+        air_state = AirState(p_tot=session.air.p_tot, T=session.air.T, RH=session.air.RH)
+        rho = air_density(air_state)
     else:
         rho = float(rho_fixed)
     xs: List[float] = []

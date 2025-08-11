@@ -31,6 +31,7 @@ from .step_plan import StepPlan
 from .step_measurements import StepMeasurements
 from .step_csa import StepCSA
 from .step_exhaust import StepExhaust
+from .step_runners import StepRunnersPlenum
 from .step_validate import StepValidate
 from .step_report import StepReport
 
@@ -81,6 +82,7 @@ class WizardWindow(QMainWindow):
             "Pomiary",
             "CSA",
             "Exhaust",
+            "Runnery & Plenum",
             "Walidacja",
             "Raport",
         ]
@@ -99,6 +101,7 @@ class WizardWindow(QMainWindow):
         self.step6 = StepMeasurements(self.state)
         self.step7 = StepCSA(self.state)
         self.step8 = StepExhaust(self.state)
+        self.step8a = StepRunnersPlenum(self.state)
         self.step9 = StepValidate(self.state)
         self.step10 = StepReport(self.state)
 
@@ -111,6 +114,7 @@ class WizardWindow(QMainWindow):
             self.step6,
             self.step7,
             self.step8,
+            self.step8a,
             self.step9,
             self.step10,
         ):
@@ -146,6 +150,7 @@ class WizardWindow(QMainWindow):
             self.step6,
             self.step7,
             self.step8,
+            self.step8a,
         ):
             # steps 1-8 affect navigation state
             s.sig_valid_changed.connect(self._update_nav)
@@ -194,7 +199,10 @@ class WizardWindow(QMainWindow):
         elif idx == 7:
             # Exhaust step: allow next even if empty, but if present validate basic intake/exhaust presence
             allow_next = True
-        elif idx in (8, 9):
+        elif idx == 8:
+            # Runnery & Plenum is optional calculations
+            allow_next = True
+        elif idx in (9, 10):
             allow_next = idx < (self.stack.count() - 1)
         self.btn_next.setEnabled(allow_next)
 

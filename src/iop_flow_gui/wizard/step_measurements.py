@@ -333,7 +333,7 @@ class StepMeasurements(QWidget):
 
         # Pitot mini-panel
         pit_row = QVBoxLayout()
-        pit_group = QHBoxLayout()
+        # group layout defined inside group box
         from PySide6.QtWidgets import QLineEdit, QGroupBox
 
         gb = QGroupBox("Pitot (lokalna prędkość)", self)
@@ -543,6 +543,6 @@ class StepMeasurements(QWidget):
             Mach = V / F.speed_of_sound(F.C_to_K(tC))
             self.lbl_pit_V.setText(f"V = {V:.1f} m/s")
             self.lbl_pit_Mach.setText(f"Mach = {Mach:.3f}")
-        except Exception as e:
+        except Exception:
             self.lbl_pit_V.setText("V = — m/s")
             self.lbl_pit_Mach.setText("Mach = —")

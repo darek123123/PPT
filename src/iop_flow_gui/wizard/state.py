@@ -73,6 +73,9 @@ class WizardState:
     # Aggregated results from steps (e.g., HP)
     results: Dict[str, Any] = field(default_factory=dict)
 
+    # Optional tuning/export section (runners/plenum calculators)
+    tuning: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         if isinstance(self.air, AirConditions):
