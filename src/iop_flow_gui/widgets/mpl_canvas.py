@@ -32,6 +32,8 @@ class MplCanvas(QWidget):
         self.readout = QLabel("", self)
         self.readout.setStyleSheet("color: #555; font-size: 11px;")
         self._units: Tuple[str, str] = ("", "")  # (x_unit, y_unit)
+        # Test hook: store last plotted point count (len(x) from last plot_xy call)
+        self.last_points_count = 0
         # Layout
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -74,6 +76,11 @@ class MplCanvas(QWidget):
                 return
             # reset axis
             self.ax.clear()
+            # record point count for tests (gracefully handle sequences without __len__)
+            try:
+                self.last_points_count = len(x)  # type: ignore[arg-type]
+            except Exception:  # pragma: no cover - defensive
+                self.last_points_count = 0
             # plot
             self.ax.plot(x, y, label=(label or None))
             # labels and aesthetics

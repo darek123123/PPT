@@ -4,7 +4,14 @@ from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QToolButton, QMessageBox
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QLineEdit,
+    QToolButton,
+    QMessageBox,
 )
 
 from .state import WizardState, parse_float_pl
@@ -14,6 +21,8 @@ from iop_flow_gui.widgets.mpl_canvas import MplCanvas
 
 
 class StepCSA(QWidget):
+    """CSA step: min/avg CSA inputs, auto-compute Mach@minCSA plot."""
+
     sig_valid_changed = Signal(bool)
 
     def __init__(self, state: WizardState) -> None:  # noqa: PLR0915
@@ -22,29 +31,49 @@ class StepCSA(QWidget):
         self._auto_done = False
 
         root = QHBoxLayout(self)
-        left = QVBoxLayout(); root.addLayout(left, 2)
+        left = QVBoxLayout()
+        root.addLayout(left, 2)
 
+        # Form inputs
         form = QVBoxLayout()
-        self.ed_min = QLineEdit(self); self.ed_min.setPlaceholderText("min CSA [mm²]")
-        self.ed_avg = QLineEdit(self); self.ed_avg.setPlaceholderText("avg CSA [mm²] (opcjonalne)")
-        self.ed_vt = QLineEdit(self); self.ed_vt.setPlaceholderText("v_target [m/s]")
-        form.addWidget(QLabel("Min CSA [mm²]", self)); form.addWidget(self.ed_min)
-        form.addWidget(QLabel("Avg CSA [mm²] (opcjonalne)", self)); form.addWidget(self.ed_avg)
-        form.addWidget(QLabel("Docelowa prędkość w porcie v_target [m/s]", self)); form.addWidget(self.ed_vt)
+        self.ed_min = QLineEdit(self)
+        self.ed_min.setPlaceholderText("min CSA [mm²]")
+        self.ed_avg = QLineEdit(self)
+        self.ed_avg.setPlaceholderText("avg CSA [mm²] (opcjonalne)")
+        self.ed_vt = QLineEdit(self)
+        self.ed_vt.setPlaceholderText("v_target [m/s]")
+        form.addWidget(QLabel("Min CSA [mm²]", self))
+        form.addWidget(self.ed_min)
+        form.addWidget(QLabel("Avg CSA [mm²] (opcjonalne)", self))
+        form.addWidget(self.ed_avg)
+        form.addWidget(QLabel("Docelowa prędkość w porcie v_target [m/s]", self))
+        form.addWidget(self.ed_vt)
         left.addLayout(form)
 
+        # Actions
         actions = QHBoxLayout()
-        self.btn_compute = QPushButton("Przelicz", self); actions.addWidget(self.btn_compute); actions.addStretch(1)
+        self.btn_compute = QPushButton("Przelicz", self)
+        actions.addWidget(self.btn_compute)
+        actions.addStretch(1)
         left.addLayout(actions)
 
-        # Right panel
-        right = QVBoxLayout(); root.addLayout(right, 3)
-        self.plot_mach = MplCanvas(); right.addWidget(self.plot_mach)
-        info_row = QHBoxLayout(); info_row.addStretch(1)
-        self.btn_info = QToolButton(self); self.btn_info.setText("i"); self.btn_info.setToolTip("Mach = V/a(T); V z Q i min-CSA"); info_row.addWidget(self.btn_info)
+        # Right panel (plot + info)
+        right = QVBoxLayout()
+        root.addLayout(right, 3)
+        self.plot_mach = MplCanvas()
+        right.addWidget(self.plot_mach)
+        info_row = QHBoxLayout()
+        info_row.addStretch(1)
+        self.btn_info = QToolButton(self)
+        self.btn_info.setText("i")
+        self.btn_info.setToolTip("Mach = V/a(T); V z Q i min-CSA")
+        info_row.addWidget(self.btn_info)
         right.addLayout(info_row)
-        self.lbl_nums = QLabel("—", self); self.lbl_alert = QLabel("", self); self.lbl_alert.setStyleSheet("color:red;font-weight:bold;")
-        right.addWidget(self.lbl_nums); right.addWidget(self.lbl_alert)
+        self.lbl_nums = QLabel("—", self)
+        self.lbl_alert = QLabel("", self)
+        self.lbl_alert.setStyleSheet("color:red;font-weight:bold;")
+        right.addWidget(self.lbl_nums)
+        right.addWidget(self.lbl_alert)
 
         # Signals
         self.btn_compute.clicked.connect(self._compute)
@@ -73,15 +102,22 @@ class StepCSA(QWidget):
             return
         self._auto_done = True
         try:
-            if any((self.ed_min.text().strip(), self.ed_avg.text().strip(), self.ed_vt.text().strip())):
+            if any(
+                (
+                    self.ed_min.text().strip(),
+                    self.ed_avg.text().strip(),
+                    self.ed_vt.text().strip(),
+                )
+            ):
                 self._compute()
-        except Exception:
+        except Exception:  # pragma: no cover
             pass
         self.sig_valid_changed.emit(True)
 
     # ---- Validation ----
     def _on_changed(self, *_: Any) -> None:
-        self._apply_validation(); self._emit_valid()
+        self._apply_validation()
+        self._emit_valid()
 
     def _apply_validation(self) -> None:
         def parse_opt(s: str) -> Optional[float]:

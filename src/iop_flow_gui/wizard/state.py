@@ -287,7 +287,12 @@ class WizardState:
         import json
         import os
         from iop_flow.schemas import AirConditions, Engine, Geometry
-        preset_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "preset_k20a2.json")
+        # state.py -> wizard -> iop_flow_gui -> src -> project root (need 4 up to reach root containing 'data')
+        preset_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+            "data",
+            "preset_k20a2.json",
+        )
         with open(preset_path, "r", encoding="utf-8") as f:
             preset = json.load(f)
 

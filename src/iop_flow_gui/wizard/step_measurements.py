@@ -1,4 +1,3 @@
-from PySide6.QtCore import QTimer
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -291,6 +290,7 @@ class StepMeasurements(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False  # uniform auto-compute pattern
         self._debounce = QTimer(self)
         self._debounce.setInterval(150)
         self._debounce.setSingleShot(True)
@@ -468,7 +468,17 @@ class StepMeasurements(QWidget):
         self.btn_back.clicked.connect(lambda: getattr(self.window(), "_go_back", lambda: None)())
         self.btn_next.clicked.connect(lambda: getattr(self.window(), "_go_next", lambda: None)())
         self._on_changed()
-        QTimer.singleShot(0, self._recompute)
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if self._auto_done:
+            return
+        self._auto_done = True
+        self._recompute()
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002
         self.btn_compute.setEnabled(True)
@@ -478,27 +488,42 @@ class StepMeasurements(QWidget):
     def _run_iterator(self, side: str) -> None:
         try:
             from iop_flow.tuning import sweep_intake_L, sweep_exhaust_L
-            L_min = float(self.spn_L_min.value()); L_max = float(self.spn_L_max.value()); step = float(self.spn_L_step.value())
+
+            L_min = float(self.spn_L_min.value())
+            L_max = float(self.spn_L_max.value())
+            step = float(self.spn_L_step.value())
             self._auto_done = False
-            n = int(self.cmb_iter_n.currentText()); D_m = float(self.spn_iter_D.value())/1000.0
-            T_int = float(self.spn_iter_T_int.value()); T_exh = float(self.spn_iter_T_exh.value())
+            n = int(self.cmb_iter_n.currentText())
+            D_m = float(self.spn_iter_D.value()) / 1000.0
+            T_int = float(self.spn_iter_T_int.value())
+            T_exh = float(self.spn_iter_T_exh.value())
             rpm_target = float(self.state.engine_target_rpm or 6500)
-            if L_min >= L_max or step <= 0: return
+            if L_min >= L_max or step <= 0:
+                return
             if side == "intake":
                 data = sweep_intake_L(L_min, L_max, step, n, D_m, T_int, rpm_target)
                 self.state.tuning["intake_sweep"] = data
             else:
                 data = sweep_exhaust_L(L_min, L_max, step, n, D_m, T_exh, rpm_target)
                 self.state.tuning["exhaust_sweep"] = data
-            xs = [p[0] for p in data]; ys = [p[1] for p in data]
-            self.plot_iter.clear();
-            label = "INT" if side=="intake" else "EXH"
+            xs = [p[0] for p in data]
+            ys = [p[1] for p in data]
+            self.plot_iter.clear()
+            label = "INT" if side == "intake" else "EXH"
             if xs and ys:
-                self.plot_iter.plot_xy(xs, ys, label=label, xlabel="L [mm]", ylabel="RPM", title=f"{label} rpm_for_L")
+                self.plot_iter.plot_xy(
+                    xs,
+                    ys,
+                    label=label,
+                    xlabel="L [mm]",
+                    ylabel="RPM",
+                    title=f"{label} rpm_for_L",
+                )
             self.plot_iter.render()
         except Exception:
             try:
-                self.plot_iter.clear(); self.plot_iter.render()
+                self.plot_iter.clear()
+                self.plot_iter.render()
             except Exception:
                 pass
 
@@ -648,7 +673,12 @@ class StepMeasurements(QWidget):
             tC = float((self.ed_pit_T.text() or "20.0").replace(",", "."))
             C = float((self.ed_pit_C.text() or "1.0").replace(",", "."))
             dp_pa = F.in_h2o_to_pa(dp_in)
-            rho = F.air_density(F.AirState(self.state.air.p_tot, self.state.air.T, self.state.air.RH)) if self.state.air else 1.204
+            if self.state.air:
+                rho = F.air_density(
+                    F.AirState(self.state.air.p_tot, self.state.air.T, self.state.air.RH)
+                )
+            else:
+                rho = 1.204
             V = F.velocity_pitot(dp_pa, rho, C)
             Mach = V / F.speed_of_sound(F.C_to_K(tC))
             self.lbl_pit_V.setText(f"V = {V:.1f} m/s")

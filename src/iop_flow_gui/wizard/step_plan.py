@@ -1,5 +1,6 @@
-from PySide6.QtCore import QTimer
 from __future__ import annotations
+
+from PySide6.QtCore import QTimer
 
 from typing import Dict, List, Optional, Tuple
 
