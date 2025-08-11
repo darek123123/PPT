@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Signal, QEvent
+from PySide6.QtCore import Signal, QEvent, Qt
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import (
     QWidget,
@@ -71,14 +71,30 @@ class StepExhaust(QWidget):
 
         # Right: E/I results
         right = QVBoxLayout()
-        right.addWidget(QLabel("E/I vs lift_m", self))
+        # Info row with corner notice
+        info_row = QHBoxLayout()
+        info_row.addStretch(1)
+        from PySide6.QtWidgets import QToolButton
+
+        self.btn_info = QToolButton(self)
+        self.btn_info.setText("i")
+        self.btn_info.setToolTip("Informacje o wskaźniku E/I")
+        self.btn_info.clicked.connect(self._show_info)
+        info_row.addWidget(self.btn_info)
+        right.addLayout(info_row)
+
         self.plot_ei = MplCanvas()
+        self.plot_ei.set_readout_units("mm", "-")
         right.addWidget(self.plot_ei)
         self.lbl_ei = QLabel("—", self)
         self.lbl_alert = QLabel("", self)
         self.lbl_alert.setStyleSheet("color: red; font-weight: bold;")
+        self.lbl_corner = QLabel("", self)
+        self.lbl_corner.setStyleSheet("color: #a00; font-style: italic;")
+        self.lbl_corner.setAlignment(Qt.AlignRight)
         right.addWidget(self.lbl_ei)
         right.addWidget(self.lbl_alert)
+        right.addWidget(self.lbl_corner)
 
         root.addLayout(right, 3)
 
@@ -231,10 +247,20 @@ class StepExhaust(QWidget):
         # Plot E/I vs lift for matched lifts only
         self.plot_ei.clear()
         if ei:
-            lifts = [row.get("lift_m") for row in ei]
+            lifts_m = [float(row.get("lift_m") or 0.0) for row in ei]
+            lifts_mm = [v * 1000.0 for v in lifts_m]
             vals = [row.get("EI") for row in ei]
-            if lifts and any(v is not None for v in vals):
-                self.plot_ei.plot_xy(lifts, vals, label="E/I")
+            valid_vals = [float(v) for v in vals if v is not None]
+            title_extra = f" · mean={sum(valid_vals)/len(valid_vals):.3f}" if valid_vals else ""
+            if lifts_mm and any(v is not None for v in vals):
+                self.plot_ei.plot_xy(
+                    lifts_mm,
+                    [float(v) if v is not None else 0.0 for v in vals],
+                    label="E/I",
+                    xlabel="Lift [mm]",
+                    ylabel="E/I [–]",
+                    title=f"E/I vs Lift{title_extra}",
+                )
         self.plot_ei.render()
 
         # Summary and alerts
@@ -252,7 +278,20 @@ class StepExhaust(QWidget):
                         self.lbl_alert.setText("")
                 else:
                     self.lbl_alert.setText("")
+            self.lbl_corner.setText("")
         else:
             txt = "Brak danych exhaust — E/I będzie puste"
             self.lbl_alert.setText("")
+            self.lbl_corner.setText("Brak danych wydechu — wykres niedostępny (INFO)")
         self.lbl_ei.setText(txt)
+
+    def _show_info(self) -> None:
+        QMessageBox.information(
+            self,
+            "E/I — co to jest?",
+            (
+                "E/I to stosunek przepływu wydechu do ssania dla tych samych liftów.\n"
+                "Wykres pokazuje E/I w funkcji liftu [mm].\n\n"
+                "Uwaga: jeśli brak danych EXH, wykres jest niedostępny."
+            ),
+        )

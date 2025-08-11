@@ -12,7 +12,7 @@ from .app import MainWindow
 def main(argv: Optional[list[str]] = None) -> int:
     # Offscreen smoke: create and exit
     platform = os.environ.get("QT_QPA_PLATFORM", "")
-    app = QApplication(argv or sys.argv)
+    app = QApplication.instance() or QApplication(argv or sys.argv)
     win = MainWindow()
     if platform == "offscreen":
         # create widgets without entering event loop

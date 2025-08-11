@@ -13,12 +13,15 @@ from PySide6.QtWidgets import (
     QTableView,
     QHeaderView,
     QMessageBox,
+    QLabel,
 )
 
 from iop_flow.io_json import read_session
 from iop_flow.api import run_compare as run_compare_api
+from iop_flow import formulas as F
 
 from ..widgets.mpl_canvas import MplCanvas
+from ..wizard.state import lift_m_to_mm, q_m3s_to_cfm
 
 
 DEFAULT_KEYS: Sequence[str] = ("q_m3s_ref", "Cd_ref", "V_ref", "Mach_ref")
@@ -63,13 +66,17 @@ class CompareView(QWidget):
         self.table.setEditTriggers(QTableView.NoEditTriggers)
         root.addWidget(self.table)
 
-        # Plots
+        # Plots (Cd and Q* overlays)
         plots = QHBoxLayout()
-        self.plot_overlay = MplCanvas()
-        self.plot_delta = MplCanvas()
-        plots.addWidget(self.plot_overlay)
-        plots.addWidget(self.plot_delta)
+        self.plot_cd = MplCanvas()
+        self.plot_q = MplCanvas()
+        plots.addWidget(self.plot_cd)
+        plots.addWidget(self.plot_q)
         root.addLayout(plots)
+
+        # Status below plots
+        self.lbl_status = QLabel("dp_ref=—, ρ_ref=—, A_ref=—", self)
+        root.addWidget(self.lbl_status)
 
         # Wire up
         self.btn_back.clicked.connect(lambda: self.back_requested.emit())
@@ -144,7 +151,7 @@ class CompareView(QWidget):
             return
         self._result = run_compare_api(before, after, keys=DEFAULT_KEYS)
         self._populate_table()
-        self._populate_plots()
+        self._populate_plots(before, after)
         self._refresh_buttons()
         try:
             win = self.window()
@@ -211,27 +218,53 @@ class CompareView(QWidget):
                 model.setItem(r, c, QStandardItem(text))
         self.table.setModel(model)
 
-    def _populate_plots(self) -> None:
+    def _populate_plots(self, before_session: Any, after_session: Any) -> None:
         assert self._result is not None
         # Clear plots
-        self.plot_overlay.clear()
-        self.plot_delta.clear()
+        self.plot_cd.clear()
+        self.plot_q.clear()
 
         intake = self._result.get("intake", {})
         before_series = intake.get("before", [])
         after_series = intake.get("after", [])
-        # Overlay q_m3s_ref vs lift_m
-        x_b = [float(r.get("lift_m", 0.0)) for r in before_series]
-        y_b = [float(r.get("q_m3s_ref", 0.0)) for r in before_series]
-        x_a = [float(r.get("lift_m", 0.0)) for r in after_series]
-        y_a = [float(r.get("q_m3s_ref", 0.0)) for r in after_series]
-        self.plot_overlay.plot_xy(x_b, y_b, label="Before q_m3s_ref")
-        self.plot_overlay.plot_xy(x_a, y_a, label="After q_m3s_ref")
-        self.plot_overlay.render()
 
-        # %Δ q_m3s_ref vs lift_m
-        diffs_q = intake.get("diffs", {}).get("q_m3s_ref", [])
-        x = [float(r.get("lift_m", 0.0)) for r in diffs_q]
-        y = [float(r.get("delta_pct", 0.0)) for r in diffs_q]
-        self.plot_delta.plot_xy(x, y, label="%Δ q_m3s_ref")
-        self.plot_delta.render()
+        # Params for titles/status
+        params = self._result.get("params", {})
+        a_key = params.get("A_ref_key", "eff")
+        try:
+            dp_ref = float(params.get("dp_ref_inH2O", 28.0))
+        except Exception:
+            dp_ref = 28.0
+        rho_ref = None
+        try:
+            air = getattr(after_session, "air", None) or getattr(before_session, "air", None)
+            if air:
+                rho_ref = F.air_density(F.AirState(air.p_tot, air.T, air.RH))
+        except Exception:
+            rho_ref = None
+
+        # Cd overlay (Before/After)
+        xb_m = [float(r.get("lift_m", 0.0)) for r in before_series]
+        yb_cd = [float(r.get("Cd_ref", 0.0)) for r in before_series]
+        xa_m = [float(r.get("lift_m", 0.0)) for r in after_series]
+        ya_cd = [float(r.get("Cd_ref", 0.0)) for r in after_series]
+        xb = lift_m_to_mm(xb_m)
+        xa = lift_m_to_mm(xa_m)
+        title_cd = f"Cd — Before/After @ {a_key} ΔP={dp_ref:.0f}\" H₂O"
+        self.plot_cd.set_readout_units("mm", "-")
+        self.plot_cd.plot_xy(xb, yb_cd, label="Before", xlabel="Lift [mm]", ylabel="Cd (-)", title=title_cd)
+        self.plot_cd.plot_xy(xa, ya_cd, label="After")
+        self.plot_cd.render()
+
+        # Q* overlay (CFM)
+        yb_q_cfm = q_m3s_to_cfm([float(r.get("q_m3s_ref", 0.0)) for r in before_series])
+        ya_q_cfm = q_m3s_to_cfm([float(r.get("q_m3s_ref", 0.0)) for r in after_series])
+        title_q = f"Q* — Before/After @ {a_key} ΔP={dp_ref:.0f}\" H₂O"
+        self.plot_q.set_readout_units("mm", "CFM")
+        self.plot_q.plot_xy(xb, yb_q_cfm, label="Before", xlabel="Lift [mm]", ylabel="Q* [CFM]", title=title_q)
+        self.plot_q.plot_xy(xa, ya_q_cfm, label="After")
+        self.plot_q.render()
+
+        # Status
+        rho_txt = f"{rho_ref:.4f} kg/m³" if rho_ref is not None else "—"
+        self.lbl_status.setText(f"dp_ref={dp_ref:.0f}\" H₂O, ρ_ref={rho_txt}, A_ref={a_key}")

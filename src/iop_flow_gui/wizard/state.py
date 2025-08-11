@@ -18,6 +18,15 @@ def parse_float_pl(text: str) -> float:
     return float(cleaned)
 
 
+# Unit conversion helpers (workshop-friendly units)
+def lift_m_to_mm(x_m: list[float]) -> list[float]:
+    return [v * 1000.0 for v in x_m]
+
+
+def q_m3s_to_cfm(x_m3s: list[float]) -> list[float]:
+    return [F.m3s_to_cfm(v) for v in x_m3s]
+
+
 @dataclass
 class WizardState:
     meta: Dict[str, Any] = field(

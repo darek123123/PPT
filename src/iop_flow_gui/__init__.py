@@ -1,14 +1,14 @@
-from __future__ import annotations
-
-"""iop_flow_gui package
-
-This package configures a safe Qt platform for headless environments (e.g., CI)
-by setting QT_QPA_PLATFORM=offscreen when no DISPLAY is present on non-Windows
-systems. This avoids ImportError related to missing libEGL/libxcb backends
-when importing PySide6 in test environments.
+"""
+Initialize iop_flow_gui package and ensure Qt offscreen mode when needed.
 """
 
+from __future__ import annotations
 import os
+
+# On Linux/macOS in headless CI (no DISPLAY), force Qt to use the offscreen
+# platform plugin to allow Matplotlib/Qt to render without a window server.
+if os.name != "nt" and not os.environ.get("DISPLAY"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # On Linux/macOS in headless CI (no DISPLAY), force Qt to use the offscreen
 # platform plugin to avoid linking against GUI backends like xcb/eglfs.

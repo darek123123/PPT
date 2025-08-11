@@ -46,7 +46,20 @@ class _SideTable(QWidget):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["lift_mm", "q_cfm", "dp_inH2O", "swirl_rpm"])
+        # Human-friendly headers and tooltips
+        headers = [
+            ("Lift [mm]", "Skok zaworu; wartości z planu"),
+            ("Q [CFM] @ ΔP_meas", "Przepływ zmierzony; w CFM"),
+            ("ΔP [\"H₂O]", "Depresja pomiarowa"),
+            ("Swirl [RPM]", "Swirl obrotowy, jeśli mierzony"),
+        ]
+        from PySide6.QtWidgets import QTableWidgetItem as _QItem
+
+        self.table.setHorizontalHeaderLabels([h for h, _ in headers])
+        for c, (h, tip) in enumerate(headers):
+            it = _QItem(h)
+            it.setToolTip(tip)
+            self.table.setHorizontalHeaderItem(c, it)
         self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
         self.table.setSelectionMode(QAbstractItemView.ContiguousSelection)
@@ -301,9 +314,17 @@ class StepMeasurements(QWidget):
         right = QVBoxLayout()
         self.plot_cd = MplCanvas()
         self.plot_q = MplCanvas()
-        right.addWidget(QLabel("Cd_ref vs lift_m", self))
+        info_row = QHBoxLayout()
+        info_row.addStretch(1)
+        from PySide6.QtWidgets import QToolButton
+
+        self.btn_info = QToolButton(self)
+        self.btn_info.setText("i")
+        self.btn_info.setToolTip("Informacje o Cd i Q*")
+        self.btn_info.clicked.connect(self._show_info)
+        info_row.addWidget(self.btn_info)
+        right.addLayout(info_row)
         right.addWidget(self.plot_cd)
-        right.addWidget(QLabel("q_m3s_ref vs lift_m", self))
         right.addWidget(self.plot_q)
         self.lbl_params = QLabel("—", self)
         right.addWidget(self.lbl_params)
@@ -384,14 +405,24 @@ class StepMeasurements(QWidget):
 
         self.plot_cd.clear()
         self.plot_q.clear()
-        lifts = [d.get("lift_m") for d in data]
-        cd = [d.get("Cd_ref") for d in data]
-        q = [d.get("q_m3s_ref") for d in data]
-        label_side = "INT" if side == "intake" else "EXH"
-        if lifts and any(v is not None for v in cd):
-            self.plot_cd.plot_xy(lifts, cd, label=f"{label_side} Cd_ref")
-        if lifts and any(v is not None for v in q):
-            self.plot_q.plot_xy(lifts, q, label=f"{label_side} q_m3s_ref")
+        lifts_m = [float(d.get("lift_m") or 0.0) for d in data]
+        lifts_mm = [v * 1000.0 for v in lifts_m]
+        cd = [float(d.get("Cd_ref") or 0.0) for d in data]
+        q_cfm = [float(d.get("q_m3s_ref") or 0.0) * 2118.8800032893 for d in data]
+        a_key = (result.get("params", {}).get("A_ref_key") or "eff") if isinstance(result, dict) else "eff"
+        try:
+            dp_ref = float(result.get("params", {}).get("dp_ref_inH2O", 28.0))  # type: ignore[assignment]
+        except Exception:
+            dp_ref = 28.0
+        side_prefix = "INT" if side == "intake" else "EXH"
+        title_cd = f"{side_prefix} · Cd @ {a_key} ΔP={dp_ref:.0f}\" H₂O"
+        title_q = f"{side_prefix} · Q* @ {a_key} ΔP={dp_ref:.0f}\" H₂O"
+        self.plot_cd.set_readout_units("mm", "-")
+        self.plot_q.set_readout_units("mm", "CFM")
+        if lifts_mm and any(v != 0.0 for v in cd):
+            self.plot_cd.plot_xy(lifts_mm, cd, label=f"{side_prefix}", xlabel="Lift [mm]", ylabel="Cd (-)", title=title_cd)
+        if lifts_mm and any(v != 0.0 for v in q_cfm):
+            self.plot_q.plot_xy(lifts_mm, q_cfm, label=f"{side_prefix}", xlabel="Lift [mm]", ylabel="Q* [CFM]", title=title_q)
         self.plot_cd.render()
         self.plot_q.render()
 
@@ -440,3 +471,13 @@ class StepMeasurements(QWidget):
         except Exception:
             pass
         self._emit_valid()
+
+    def _show_info(self) -> None:
+        QMessageBox.information(
+            self,
+            "Co to jest?",
+            (
+                "Cd (-) – Cd = Q / (A·√(2ΔP/ρ)) przy ΔP_ref.\n"
+                "Q [CFM]* – Przepływ przeliczony do ΔP_ref; wykres w CFM dla czytelności."
+            ),
+        )

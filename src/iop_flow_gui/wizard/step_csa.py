@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QToolButton,
 )
 
 from iop_flow.api import run_all
@@ -57,9 +58,16 @@ class StepCSA(QWidget):
 
         # Right panel: plots and numbers
         right = QVBoxLayout()
-        right.addWidget(QLabel("Mach@minCSA vs lift_m", self))
         self.plot_mach = MplCanvas()
         right.addWidget(self.plot_mach)
+        info_row = QHBoxLayout()
+        info_row.addStretch(1)
+        self.btn_info = QToolButton(self)
+        self.btn_info.setText("i")
+        self.btn_info.setToolTip("Mach = V/a(T); V z Q i min-CSA")
+        self.btn_info.clicked.connect(lambda: self._show_info())
+        info_row.addWidget(self.btn_info)
+        right.addLayout(info_row)
 
         self.lbl_nums = QLabel("—", self)
         self.lbl_alert = QLabel("", self)
@@ -183,7 +191,19 @@ class StepCSA(QWidget):
         if mach and intake:
             lifts = [row.get("lift_m") for row in intake]
             if lifts and len(lifts) == len(mach):
-                self.plot_mach.plot_xy(lifts, mach, label="Mach@minCSA")
+                # Titles and labels
+                a_T = 0.0
+                min_csa_mm2 = (self.state.csa_min_m2 or 0.0) * 1e6
+                try:
+                    from iop_flow import formulas as F
+
+                    a_T = F.speed_of_sound(self.state.air.T if self.state.air else 293.15)
+                except Exception:
+                    a_T = 0.0
+                title = f"Mach@min-CSA min-CSA={min_csa_mm2:.0f} mm²; a(T)={a_T:.0f} m/s"
+                lifts_mm = [float(v or 0.0) * 1000.0 for v in lifts]
+                self.plot_mach.set_readout_units("mm", "-")
+                self.plot_mach.plot_xy(lifts_mm, mach, label="Mach@minCSA", xlabel="Lift [mm]", ylabel="Mach (-)", title=title)
         self.plot_mach.render()
 
         # Numbers and alert
@@ -218,3 +238,12 @@ class StepCSA(QWidget):
                     sb.showMessage(f"OK ({dt_ms} ms)", 2000)
         except Exception:
             pass
+
+    def _show_info(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        QMessageBox.information(
+            self,
+            "Informacje",
+            "Mach = V/a(T); V liczone z Q oraz min-CSA (prędkość w minimum przekroju)",
+        )
