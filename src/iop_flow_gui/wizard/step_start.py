@@ -22,6 +22,7 @@ class StepStart(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False
 
         lay = QVBoxLayout(self)
         form = QFormLayout()
@@ -65,6 +66,18 @@ class StepStart(QWidget):
             w.textChanged.connect(self._on_changed)
         self.cmb_mode.currentIndexChanged.connect(self._on_changed)
 
+        self._on_changed()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if getattr(self, "_auto_done", False):
+            return
+        self._auto_done = True
         self._on_changed()
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002

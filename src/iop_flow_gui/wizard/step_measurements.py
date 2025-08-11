@@ -78,10 +78,15 @@ class _SideTable(QWidget):
         self.table.itemChanged.connect(self._on_changed)
         self.table.viewport().installEventFilter(self)
 
-    self._load_from_state()
-    self._update_counts()
-    # Auto-compute after showing step
-    QTimer.singleShot(0, self.sig_changed.emit)
+        self._load_from_state()
+        self._update_counts()
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def _auto_compute_once(self) -> None:
+        if getattr(self, "_auto_done", False):
+            return
+        self._auto_done = True
+        self.sig_changed.emit()
 
     def eventFilter(self, obj, event):  # type: ignore[override]
         if obj is self.table.viewport() and event.type() == QEvent.KeyPress:
@@ -474,6 +479,7 @@ class StepMeasurements(QWidget):
         try:
             from iop_flow.tuning import sweep_intake_L, sweep_exhaust_L
             L_min = float(self.spn_L_min.value()); L_max = float(self.spn_L_max.value()); step = float(self.spn_L_step.value())
+            self._auto_done = False
             n = int(self.cmb_iter_n.currentText()); D_m = float(self.spn_iter_D.value())/1000.0
             T_int = float(self.spn_iter_T_int.value()); T_exh = float(self.spn_iter_T_exh.value())
             rpm_target = float(self.state.engine_target_rpm or 6500)

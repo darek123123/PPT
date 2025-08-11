@@ -24,6 +24,7 @@ class StepEngine(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False
         self._timer = QTimer(self)
         self._timer.setInterval(150)
         self._timer.setSingleShot(True)
@@ -71,9 +72,18 @@ class StepEngine(QWidget):
         for w in (self.ed_displ, self.ed_cyl, self.ed_ve, self.ed_rpm):
             w.textChanged.connect(self._on_changed)
 
-    self._on_changed()
-    # Auto-compute after showing step
-    QTimer.singleShot(0, self._update_plot)
+        self._on_changed()
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if self._auto_done:
+            return
+        self._auto_done = True
+        self._update_plot()
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002
         # parse

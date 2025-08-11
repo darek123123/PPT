@@ -26,6 +26,7 @@ class StepValidate(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False
 
         root = QVBoxLayout(self)
 
@@ -43,9 +44,20 @@ class StepValidate(QWidget):
         root.addLayout(actions)
 
         self.btn_recompute.clicked.connect(self._recompute)
-    self._recompute()
-    # Auto-compute after showing step
-    self.sig_valid_changed.emit(True)
+        self._recompute()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if self._auto_done:
+            return
+        self._auto_done = True
+        self._recompute()
+        self.sig_valid_changed.emit(True)
 
     def _add_item(self, level: str, text: str) -> None:
         icon = self.style().standardIcon(

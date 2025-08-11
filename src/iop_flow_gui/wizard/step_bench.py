@@ -24,6 +24,7 @@ class StepBench(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False
         lay = QVBoxLayout(self)
         form = QFormLayout()
         lay.addLayout(form)
@@ -57,6 +58,18 @@ class StepBench(QWidget):
         for w in (self.ed_dp_ref, self.ed_dp_meas, self.ed_T_C, self.ed_p_pa, self.ed_rh):
             w.textChanged.connect(self._on_changed)
 
+        self._on_changed()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if self._auto_done:
+            return
+        self._auto_done = True
         self._on_changed()
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002

@@ -27,6 +27,7 @@ class StepPlan(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
+        self._auto_done = False
 
         root = QHBoxLayout(self)
 
@@ -76,19 +77,28 @@ class StepPlan(QWidget):
         self.plot = MplCanvas()
         right.addWidget(self.plot)
 
-    # wiring
-    self.btn_gen_i.clicked.connect(lambda: self._gen("intake"))
-    self.btn_gen_e.clicked.connect(lambda: self._gen("exhaust"))
-    self.btn_copy.clicked.connect(self._copy_int_to_exh)
-    self.btn_clear.clicked.connect(self._clear)
-    self.tbl_i.itemChanged.connect(lambda *_: self._on_changed())
-    self.tbl_e.itemChanged.connect(lambda *_: self._on_changed())
-    self.chk_swirl.toggled.connect(lambda *_: self._on_changed())
-    # Prefill from state if present; otherwise generate 1..9 mm
-    self._prefill_from_state()
-    self._on_changed()
-    # Auto-compute after showing step
-    QTimer.singleShot(0, self._update_plot)
+        # wiring
+        self.btn_gen_i.clicked.connect(lambda: self._gen("intake"))
+        self.btn_gen_e.clicked.connect(lambda: self._gen("exhaust"))
+        self.btn_copy.clicked.connect(self._copy_int_to_exh)
+        self.btn_clear.clicked.connect(self._clear)
+        self.tbl_i.itemChanged.connect(lambda *_: self._on_changed())
+        self.tbl_e.itemChanged.connect(lambda *_: self._on_changed())
+        self.chk_swirl.toggled.connect(lambda *_: self._on_changed())
+        # Prefill
+        self._prefill_from_state()
+        self._on_changed()
+        QTimer.singleShot(0, self._auto_compute_once)
+
+    def showEvent(self, event):  # type: ignore[override]
+        super().showEvent(event)
+        self._auto_compute_once()
+
+    def _auto_compute_once(self) -> None:
+        if self._auto_done:
+            return
+        self._auto_done = True
+        self._update_plot()
 
     def _grid_inputs(self) -> Optional[Tuple[float, float, float]]:
         try:
