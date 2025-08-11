@@ -83,6 +83,18 @@ class StepCSA(QWidget):
             self.ed_vt.setText(f"{self.state.engine_v_target:.1f}")
 
         self._emit_valid()
+        # If we have prefilled values, compute immediately to render charts
+        try:
+            if any(
+                (
+                    bool(self.ed_min.text().strip()),
+                    bool(self.ed_avg.text().strip()),
+                    bool(self.ed_vt.text().strip()),
+                )
+            ):
+                self._compute()
+        except Exception:
+            pass
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002
         # Live-validate fields (basic)

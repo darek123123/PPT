@@ -212,8 +212,8 @@ class WizardState:
         # Meta
         self.meta.update(
             {
-                "project_name": "Domyślna 2.0L",
-                "client": "Przykład",
+                "project_name": "Demo 2.0L head",
+                "client": "Example",
                 "date_iso": "",
                 "mode": "baseline",
                 "display_units": "workshop_pl",
@@ -222,18 +222,18 @@ class WizardState:
         )
         # Bench & Air
         self.air_dp_ref_inH2O = 28.0
-        self.air_dp_meas_inH2O = None
-        self.air = AirConditions(p_tot=101_325.0, T=F.C_to_K(20.0), RH=0.50)
+        self.air_dp_meas_inH2O = 28.0
+        self.air = AirConditions(p_tot=101_325.0, T=F.C_to_K(20.0), RH=0.0)
         # Engine
         self.engine = Engine(displ_L=2.0, cylinders=4, ve=0.95)
         self.engine_target_rpm = 6500
         # Geometry (mm -> m)
         self.geometry = Geometry(
             bore_m=86.0 / 1000.0,
-            valve_int_m=33.0 / 1000.0,
-            valve_exh_m=28.0 / 1000.0,
+            valve_int_m=34.0 / 1000.0,
+            valve_exh_m=29.0 / 1000.0,
             throat_m=27.0 / 1000.0,
-            stem_m=6.0 / 1000.0,
+            stem_m=7.0 / 1000.0,
             port_volume_cc=220.0,
             port_length_m=150.0 / 1000.0,
             seat_angle_deg=45.0,
@@ -248,23 +248,23 @@ class WizardState:
         for lift in self.lifts_exhaust_mm:
             self.dp_per_point_inH2O[("exhaust", round(lift, 3))] = 28.0
         self.will_enter_swirl = True
-    # Measurements default example values (CFM @ 28"). Intake with swirl RPM, Exhaust without swirl
-        int_q = [20, 38, 62, 85, 105, 120, 132, 138, 140]
-        int_sw = [200, 260, 320, 380, 430, 470, 500, 520, 540]
+        # Measurements default example values (CFM @ 28"). Intake with swirl RPM; Exhaust = 0.78 * intake
+        int_q = [22, 35, 48, 60, 70, 78, 84, 83, 82]
+        int_sw = [200, 300, 400, 500, 600, 700, 820, 900, 950]
         self.points_int = [
-            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": None, "swirl_rpm": s}
+            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": 28.0, "swirl_rpm": s}
             for lift, q, s in zip(self.lifts_intake_mm, int_q, int_sw)
         ]
-        exh_q = [14, 28, 45, 60, 74, 84, 94, 100, 105]
+        exh_q = [int(round(q * 0.78)) for q in int_q]
         self.points_exh = [
-            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": None, "swirl_rpm": None}
-            for lift, q in zip(self.lifts_exhaust_mm, exh_q)
+            {"lift_mm": lift, "q_cfm": qx, "dp_inH2O": 28.0, "swirl_rpm": None}
+            for lift, qx in zip(self.lifts_exhaust_mm, exh_q)
         ]
         # Apply into measurement buffers
         self.measure_intake = [dict(r) for r in self.points_int]
         self.measure_exhaust = [dict(r) for r in self.points_exh]
         # CSA and target velocity
-        self.set_csa_from_ui(min_csa_mm2=380.0, avg_csa_mm2=450.0, v_target=100.0)
+        self.set_csa_from_ui(min_csa_mm2=520.0, avg_csa_mm2=600.0, v_target=100.0)
 
 
 # Validators

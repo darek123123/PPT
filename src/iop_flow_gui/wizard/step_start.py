@@ -47,6 +47,20 @@ class StepStart(QWidget):
         form.addRow("Jednostki", self.cmb_units)
         form.addRow("Notatki", self.ed_notes)
 
+        # Prefill from state if present
+        m = self.state.meta
+        if m.get("project_name"):
+            self.ed_project.setText(str(m.get("project_name")))
+        if m.get("client"):
+            self.ed_client.setText(str(m.get("client")))
+        if m.get("mode"):
+            mode = str(m.get("mode"))
+            idx = max(0, self.cmb_mode.findText(mode))
+            self.cmb_mode.setCurrentIndex(idx)
+        # Keep date as today (existing logic) unless meta has a date
+        if m.get("date_iso"):
+            self.ed_date.setText(str(m.get("date_iso")))
+
         for w in (self.ed_project, self.ed_client, self.ed_date):
             w.textChanged.connect(self._on_changed)
         self.cmb_mode.currentIndexChanged.connect(self._on_changed)

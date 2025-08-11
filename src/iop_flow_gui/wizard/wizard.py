@@ -43,9 +43,15 @@ class WizardWindow(QMainWindow):
         self.settings = QSettings("iop-flow", "wizard")
         self._expert_mode = bool(self.settings.value("expert_mode", False))
 
-        # Apply built-in defaults at startup so wizard opens pre-filled
+        # Apply built-in defaults at startup so wizard opens pre-filled if fresh
         try:
-            self.state.apply_defaults_preset()
+            is_fresh = not bool(
+                (self.state.meta.get("project_name") or "").strip()
+                or self.state.measure_intake
+                or self.state.geometry
+            )
+            if is_fresh:
+                self.state.apply_defaults_preset()
         except Exception:
             pass
 
@@ -66,10 +72,19 @@ class WizardWindow(QMainWindow):
         self.setCentralWidget(central)
 
         # breadcrumb + progress
-        self.lbl_breadcrumb = QLabel(
-            "Start → Bench & Air → Silnik → Geometria → Plan → Pomiary → CSA → Exhaust → Walidacja → Raport",
-            self,
-        )
+        self._step_names = [
+            "Start",
+            "Bench & Air",
+            "Silnik",
+            "Geometria",
+            "Plan",
+            "Pomiary",
+            "CSA",
+            "Exhaust",
+            "Walidacja",
+            "Raport",
+        ]
+        self.lbl_breadcrumb = QLabel("", self)
         root.addWidget(self.lbl_breadcrumb)
 
         self.stack = QStackedWidget(self)
@@ -143,6 +158,14 @@ class WizardWindow(QMainWindow):
     def _update_nav(self) -> None:
         idx = self.stack.currentIndex()
         self.btn_back.setEnabled(idx > 0)
+        # Update breadcrumb with current step info
+        try:
+            total = self.stack.count()
+            name = self._step_names[idx] if 0 <= idx < len(self._step_names) else "—"
+            self.lbl_breadcrumb.setText(f"Krok {idx+1}/{total}: {name}")
+            self.setWindowTitle(f"Kreator — {name}")
+        except Exception:
+            pass
         if self._expert_mode:
             self.btn_next.setEnabled(idx < (self.stack.count() - 1))
             return

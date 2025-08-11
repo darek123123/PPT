@@ -83,7 +83,8 @@ class StepPlan(QWidget):
         self.tbl_i.itemChanged.connect(lambda *_: self._on_changed())
         self.tbl_e.itemChanged.connect(lambda *_: self._on_changed())
         self.chk_swirl.toggled.connect(lambda *_: self._on_changed())
-
+        # Prefill from state if present; otherwise generate 1..9 mm
+        self._prefill_from_state()
         self._on_changed()
 
     def _grid_inputs(self) -> Optional[Tuple[float, float, float]]:
@@ -111,6 +112,31 @@ class StepPlan(QWidget):
         self._fill_table(self.tbl_i, [])
         self._fill_table(self.tbl_e, [])
         self._on_changed()
+
+    def _prefill_from_state(self) -> None:
+        li = list(self.state.plan_intake())
+        le = list(self.state.plan_exhaust())
+        if not li:
+            li = [float(x) for x in range(1, 10)]
+        if not le:
+            le = [float(x) for x in range(1, 10)]
+        self._fill_table(self.tbl_i, li)
+        self._fill_table(self.tbl_e, le)
+        # Fill dp where present in state
+        def _apply_dp(tbl: QTableWidget, side: str) -> None:
+            for r in range(tbl.rowCount()):
+                it_l = tbl.item(r, 0)
+                if not it_l:
+                    continue
+                try:
+                    lift = round(parse_float_pl(it_l.text()), 3)
+                except Exception:
+                    continue
+                dp = self.state.dp_for_point(side, lift)
+                if dp is not None:
+                    tbl.setItem(r, 1, QTableWidgetItem(f"{dp:.3f}"))
+        _apply_dp(self.tbl_i, "intake")
+        _apply_dp(self.tbl_e, "exhaust")
 
 
     def _fill_table(self, tbl: QTableWidget, lifts: List[float]) -> None:

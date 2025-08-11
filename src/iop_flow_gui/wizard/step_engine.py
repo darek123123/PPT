@@ -48,6 +48,26 @@ class StepEngine(QWidget):
         self.canvas = MplCanvas()
         lay.addWidget(self.canvas)
 
+        # Prefill from state if present; else sensible defaults
+        if self.state.engine:
+            e = self.state.engine
+            if e.displ_L:
+                self.ed_displ.setText(f"{e.displ_L:.3g}")
+            if e.cylinders:
+                self.ed_cyl.setText(str(int(e.cylinders)))
+            if e.ve is not None:
+                self.ed_ve.setText(f"{e.ve:.3g}")
+        if self.state.engine_target_rpm:
+            self.ed_rpm.setText(str(int(self.state.engine_target_rpm)))
+        if not self.ed_displ.text().strip():
+            self.ed_displ.setText("2.0")
+        if not self.ed_cyl.text().strip():
+            self.ed_cyl.setText("4")
+        if not self.ed_ve.text().strip():
+            self.ed_ve.setText("0.95")
+        if not self.ed_rpm.text().strip():
+            self.ed_rpm.setText("6500")
+
         for w in (self.ed_displ, self.ed_cyl, self.ed_ve, self.ed_rpm):
             w.textChanged.connect(self._on_changed)
 

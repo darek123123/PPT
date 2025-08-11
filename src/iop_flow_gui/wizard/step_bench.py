@@ -24,7 +24,6 @@ class StepBench(QWidget):
     def __init__(self, state: WizardState) -> None:
         super().__init__()
         self.state = state
-
         lay = QVBoxLayout(self)
         form = QFormLayout()
         lay.addLayout(form)
@@ -32,6 +31,7 @@ class StepBench(QWidget):
         self.ed_dp_ref = QLineEdit(self)
         self.ed_dp_ref.setText("28.0")
         self.ed_dp_meas = QLineEdit(self)
+        self.ed_dp_meas.setText("28.0")
         self.ed_T_C = QLineEdit(self)
         self.ed_T_C.setText("20.0")
         self.ed_p_pa = QLineEdit(self)
