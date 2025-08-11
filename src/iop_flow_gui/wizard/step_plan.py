@@ -101,7 +101,16 @@ class StepPlan(QWidget):
         g = self._grid_inputs()
         if g:
             vals = gen_grid(*g)
-        self._fill_table(self.tbl_i if side == "intake" else self.tbl_e, vals)
+        # Fill with default dp from measured bench dp if available
+        tbl = self.tbl_i if side == "intake" else self.tbl_e
+        self._fill_table(tbl, vals)
+        # Apply default dp to empty dp cells
+        dp_default = self.state.air_dp_meas_inH2O or self.state.air_dp_ref_inH2O
+        if dp_default and dp_default > 0:
+            for r in range(tbl.rowCount()):
+                it_dp = tbl.item(r, 1)
+                if it_dp is None or not it_dp.text().strip():
+                    tbl.setItem(r, 1, QTableWidgetItem(f"{dp_default:.3f}"))
         self._on_changed()
 
     def _copy_int_to_exh(self) -> None:
@@ -145,7 +154,11 @@ class StepPlan(QWidget):
             tbl.setRowCount(len(lifts))
             for r, v in enumerate(lifts):
                 item_l = QTableWidgetItem(f"{v:.3f}")
-                item_dp = QTableWidgetItem("")
+                # Pre-populate dp with measured bench dp if available
+                dp_default = self.state.air_dp_meas_inH2O or self.state.air_dp_ref_inH2O
+                item_dp = QTableWidgetItem(
+                    f"{dp_default:.3f}" if (dp_default and dp_default > 0) else ""
+                )
                 tbl.setItem(r, 0, item_l)
                 tbl.setItem(r, 1, item_dp)
         finally:

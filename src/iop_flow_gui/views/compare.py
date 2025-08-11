@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QTableView,
     QHeaderView,
+    QMessageBox,
 )
 
 from iop_flow.io_json import read_session
@@ -102,6 +103,22 @@ class CompareView(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, title, start_dir, "JSON (*.json)")
         if not path:
             return
+        # Try a light validation by attempting to read the session
+        try:
+            _ = read_session(path)
+        except Exception:
+            QMessageBox.warning(
+                self,
+                "Zły format pliku",
+                "Wybrany plik nie jest Session JSON. Użyj pliku zapisanego z Kreatora (Zapisz Session JSON…).",
+            )
+            try:
+                win = self.window()
+                if hasattr(win, "statusBar"):
+                    win.statusBar().showMessage("Błąd: to nie jest Session JSON", 3000)
+            except Exception:
+                pass
+            return
         if which == "before":
             self._before_path = path
         else:
@@ -109,16 +126,32 @@ class CompareView(QWidget):
         self._set_last_dir(path)
         self._result = None
         self._refresh_buttons()
+        try:
+            win = self.window()
+            if hasattr(win, "statusBar"):
+                win.statusBar().showMessage("Plik wczytany", 2000)
+        except Exception:
+            pass
 
     def _on_run(self) -> None:
         if not (self._before_path and self._after_path):
             return
-        before = read_session(self._before_path)
-        after = read_session(self._after_path)
+        try:
+            before = read_session(self._before_path)
+            after = read_session(self._after_path)
+        except Exception:
+            QMessageBox.warning(self, "Błąd", "Nie udało się wczytać Session JSON.")
+            return
         self._result = run_compare_api(before, after, keys=DEFAULT_KEYS)
         self._populate_table()
         self._populate_plots()
         self._refresh_buttons()
+        try:
+            win = self.window()
+            if hasattr(win, "statusBar"):
+                win.statusBar().showMessage("OK", 2000)
+        except Exception:
+            pass
 
     def _on_save(self) -> None:
         if not self._result:
@@ -137,8 +170,14 @@ class CompareView(QWidget):
         }
         import json
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(to_save, f, ensure_ascii=False, indent=2)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(to_save, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać pliku: {e}")
+            return
+        else:
+            QMessageBox.information(self, "Zapisano", "Różnice zapisane poprawnie.")
 
     def _populate_table(self) -> None:
         assert self._result is not None

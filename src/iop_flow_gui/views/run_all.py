@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QTableView,
     QHeaderView,
+    QMessageBox,
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtCore import Signal
@@ -88,13 +89,51 @@ class RunAllView(QWidget):
         self.btn_run.setEnabled(has_session)
         self.btn_save.setEnabled(self._result is not None)
 
+    def _clear_views(self) -> None:
+        # Clear tables
+        empty_model = QStandardItemModel(0, len(COLS), self)
+        empty_model.setHorizontalHeaderLabels(COLS)
+        self.tbl_int.setModel(empty_model)
+        self.tbl_exh.setModel(empty_model)
+        # Clear plots
+        try:
+            self.plot_cd.clear()
+            self.plot_q.clear()
+            self.plot_cd.render()
+            self.plot_q.render()
+        except Exception:
+            pass
+
     def _on_load(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Wczytaj Session JSON", "", "JSON (*.json)")
         if not path:
             return
-        self._session = read_session(path)
+        try:
+            self._session = read_session(path)
+        except Exception:
+            QMessageBox.warning(
+                self,
+                "Zły format pliku",
+                "Wybrany plik nie jest Session JSON. Użyj pliku zapisanego z Kreatora (Zapisz Session JSON…).",
+            )
+            try:
+                win = self.window()
+                if hasattr(win, "statusBar"):
+                    win.statusBar().showMessage("Błąd: to nie jest Session JSON", 3000)
+            except Exception:
+                pass
+            return
         self._result = None
+        self._clear_views()
         self._refresh_buttons()
+        try:
+            proj = getattr(self._session, "meta", {}).get("project_name", "") if self._session else ""
+            msg = f"Wczytano Session{(': ' + proj) if proj else ''}"
+            win = self.window()
+            if hasattr(win, "statusBar"):
+                win.statusBar().showMessage(msg, 2500)
+        except Exception:
+            pass
 
     def _on_run(self) -> None:
         if self._session is None:
@@ -105,7 +144,7 @@ class RunAllView(QWidget):
         t0 = time.perf_counter()
         self._result = run_all_api(
             self._session,
-            dp_ref_inH2O=prefs.dp_ref_inH2O,
+            dp_ref_inH2O=(prefs.dp_ref_inH2O or 28.0),
             a_ref_mode=prefs.a_ref_mode,
             eff_mode=prefs.eff_mode,
             engine_v_target=prefs.v_target,
@@ -127,16 +166,21 @@ class RunAllView(QWidget):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz wyniki JSON", "", "JSON (*.json)")
         if not path:
             return
-        write_session(path, self._session)  # save original session as well if desired
-        # write results
+        # write results only
         import json
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self._result, f, ensure_ascii=False, indent=2)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self._result, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać wyników: {e}")
+            return
+        else:
+            QMessageBox.information(self, "Zapisano", "Wyniki zapisane poprawnie.")
         try:
             win = self.window()
             if hasattr(win, "statusBar"):
-                win.statusBar().showMessage("OK", 2000)
+                win.statusBar().showMessage("Zapisano wyniki", 2000)
         except Exception:
             pass
 

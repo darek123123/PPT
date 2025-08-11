@@ -212,7 +212,7 @@ class WizardState:
         # Meta
         self.meta.update(
             {
-                "project_name": "Demo 2.0L head",
+                "project_name": "2.0L head (preset)",
                 "client": "Example",
                 "date_iso": "",
                 "mode": "baseline",

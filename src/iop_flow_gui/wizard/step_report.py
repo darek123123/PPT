@@ -17,6 +17,7 @@ import json
 import io
 import csv
 import os
+from pathlib import Path
 
 from iop_flow.api import run_all
 from iop_flow.io_json import write_session
@@ -89,21 +90,29 @@ class StepReport(QWidget):
 
     def _save_session(self) -> None:
         last_dir = self.settings.value("last_dir", "", type=str) or ""
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz Session", last_dir, "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Zapisz Session JSON", last_dir, "JSON (*.json)"
+        )
         if not path:
             return
         self.settings.setValue("last_dir", os.path.dirname(path))
         data = self._compute()["session"]
         try:
-            write_session(data, path)
+            write_session(Path(path), data)
             QMessageBox.information(self, "Zapis", f"Session zapisane: {path}")
             self._status_ok()
         except Exception as e:
-            QMessageBox.warning(self, "Błąd", f"Nie udało się zapisać: {e}")
+            QMessageBox.critical(
+                self,
+                "Błąd zapisu Session",
+                f"Nie udało się zapisać pliku Session JSON.\n\n{e}",
+            )
 
     def _save_results(self) -> None:
         last_dir = self.settings.value("last_dir", "", type=str) or ""
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz Results", last_dir, "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Zapisz Results JSON", last_dir, "JSON (*.json)"
+        )
         if not path:
             return
         self.settings.setValue("last_dir", os.path.dirname(path))
@@ -113,7 +122,9 @@ class StepReport(QWidget):
             QMessageBox.information(self, "Zapis", f"Wyniki zapisane: {path}")
             self._status_ok()
         except Exception as e:
-            QMessageBox.warning(self, "Błąd", f"Nie udało się zapisać: {e}")
+            QMessageBox.critical(
+                self, "Błąd zapisu wyników", f"Nie udało się zapisać wyników.\n\n{e}"
+            )
 
     @staticmethod
     def _write_json_pretty(path: str, data: object) -> None:

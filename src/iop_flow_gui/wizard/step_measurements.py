@@ -285,6 +285,7 @@ class StepMeasurements(QWidget):
         self.tab_exhaust.sig_changed.connect(self._on_changed)
         self.tabs.addTab(self.tab_intake, "INTAKE")
         self.tabs.addTab(self.tab_exhaust, "EXHAUST")
+        self.tabs.currentChanged.connect(lambda _: self._recompute())
         left.addWidget(self.tabs)
 
         actions = QHBoxLayout()
@@ -314,6 +315,7 @@ class StepMeasurements(QWidget):
 
         self.btn_compute.clicked.connect(self._recompute)
         self._on_changed()
+        QTimer.singleShot(0, self._recompute)
 
     def _on_changed(self, *args: Any) -> None:  # noqa: ARG002
         self.btn_compute.setEnabled(True)
@@ -333,7 +335,6 @@ class StepMeasurements(QWidget):
     def _recompute(self) -> None:
         if not self._prev_steps_ok():
             return
-        # Guard: skip compute if there is no measurement data yet
         if not (self.state.measure_intake or self.state.measure_exhaust):
             try:
                 self.plot_cd.clear()
@@ -361,7 +362,6 @@ class StepMeasurements(QWidget):
                 eff_mode=prefs.eff_mode,
             )
         except Exception:
-            # Gracefully handle computation errors when data is incomplete
             try:
                 self.plot_cd.clear()
                 self.plot_q.clear()
@@ -381,18 +381,17 @@ class StepMeasurements(QWidget):
         active_idx = self.tabs.currentIndex()
         side = "intake" if active_idx == 0 else "exhaust"
         data: List[Dict[str, Any]] = series.get(side, [])  # type: ignore[assignment]
-        # also present in result but not used directly here:
-        # other: List[Dict[str, Any]] = series.get("exhaust" if side == "intake" else "intake", [])  # type: ignore[assignment]
 
         self.plot_cd.clear()
         self.plot_q.clear()
         lifts = [d.get("lift_m") for d in data]
         cd = [d.get("Cd_ref") for d in data]
         q = [d.get("q_m3s_ref") for d in data]
+        label_side = "INT" if side == "intake" else "EXH"
         if lifts and any(v is not None for v in cd):
-            self.plot_cd.plot_xy(lifts, cd, label=f"{side} Cd_ref")
+            self.plot_cd.plot_xy(lifts, cd, label=f"{label_side} Cd_ref")
         if lifts and any(v is not None for v in q):
-            self.plot_q.plot_xy(lifts, q, label=f"{side} q_m3s_ref")
+            self.plot_q.plot_xy(lifts, q, label=f"{label_side} q_m3s_ref")
         self.plot_cd.render()
         self.plot_q.render()
 
@@ -426,14 +425,11 @@ class StepMeasurements(QWidget):
 
         try:
             sr_vals = [d.get("SR") for d in data if d.get("SR") is not None]
-            if sr_vals:
-                self.lbl_params.setText(
-                    self.lbl_params.text() + f", SR_avg={sum(sr_vals) / len(sr_vals):.0f} rpm"
-                )
+            sr_txt = f"{sum(sr_vals) / len(sr_vals):.0f} rpm" if sr_vals else "—"
+            self.lbl_params.setText(self.lbl_params.text() + f", SR_avg={sr_txt}")
         except Exception:
             pass
         self.btn_compute.setEnabled(False)
-        # status bar OK with timing
         try:
             dt_ms = int((time.perf_counter() - t0) * 1000)
             win = self.window()
