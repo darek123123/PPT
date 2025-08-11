@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
+    QGroupBox,
+    QLineEdit,
 )
 
 from iop_flow.api import run_all
@@ -99,7 +101,6 @@ class StepExhaust(QWidget):
         right.addWidget(self.lbl_corner)
 
         # CSA selection group
-        from PySide6.QtWidgets import QGroupBox, QLineEdit
         csa_box = QGroupBox("Primary/Collector CSA", self)
         csa_box.setToolTip("A_req = Q_exh_peak / v_target; Q_exh_peak z EXH (max z Q* @ ref)")
         csa_layout = QVBoxLayout(csa_box)
@@ -120,6 +121,39 @@ class StepExhaust(QWidget):
         csa_layout.addLayout(row2)
         right.addWidget(csa_box)
 
+        # Primary length (1D, quarter-wave) helper
+        length_box = QGroupBox("Długość primary (1D)", self)
+        length_box.setToolTip(
+            "Szacowanie L z modelu 1D (ćwierć-fala): 2L ≈ a(T) · Δt / harmonic.\n"
+            "Mierz do pierwszej istotnej zmiany przekroju (stożek/zbieracz)."
+        )
+        length_layout = QVBoxLayout(length_box)
+        row_len = QHBoxLayout()
+        self.ed_phi_exh = QLineEdit(self)
+        self.ed_phi_exh.setPlaceholderText("phi [deg] (np. 90)")
+        self.ed_phi_exh.setText("90")
+        self.ed_harm_exh = QLineEdit(self)
+        self.ed_harm_exh.setPlaceholderText("harmonic (1..)")
+        self.ed_harm_exh.setText("1")
+        self.ed_rpm_exh = QLineEdit(self)
+        self.ed_rpm_exh.setPlaceholderText("RPM (np. cel)")
+        if state.engine_target_rpm:
+            self.ed_rpm_exh.setText(str(state.engine_target_rpm))
+        row_len.addWidget(QLabel("phi:", self))
+        row_len.addWidget(self.ed_phi_exh)
+        row_len.addWidget(QLabel("harm:", self))
+        row_len.addWidget(self.ed_harm_exh)
+        row_len.addWidget(QLabel("RPM:", self))
+        row_len.addWidget(self.ed_rpm_exh)
+        row_len.addStretch(1)
+        length_layout.addLayout(row_len)
+        row_len2 = QHBoxLayout()
+        self.lbl_len_exh = QLabel("L ≈ — mm; a(T)=— m/s", self)
+        row_len2.addWidget(self.lbl_len_exh)
+        row_len2.addStretch(1)
+        length_layout.addLayout(row_len2)
+        right.addWidget(length_box)
+
         root.addLayout(right, 3)
 
         # Wire
@@ -129,11 +163,14 @@ class StepExhaust(QWidget):
         self.table.itemChanged.connect(self._on_changed)
         self.btn_compute.clicked.connect(self._compute)
         self.ed_v_exh.textChanged.connect(lambda *_: self._update_csa_numbers())
+        for ed in (self.ed_phi_exh, self.ed_harm_exh, self.ed_rpm_exh):
+            ed.textChanged.connect(lambda *_: self._update_primary_length())
 
         # Init
         self._load_from_state()
         self._update_counts()
         self._emit_valid()
+        self._update_primary_length()
 
     def eventFilter(self, obj, event):  # type: ignore[override]
         if obj is self.table.viewport() and event.type() == QEvent.KeyPress:
@@ -309,9 +346,13 @@ class StepExhaust(QWidget):
             txt = "Brak danych exhaust — E/I będzie puste"
             self.lbl_alert.setText("")
             self.lbl_corner.setText("Brak danych wydechu — wykres niedostępny (INFO)")
+
+        # Show summary text
         self.lbl_ei.setText(txt)
         # Update CSA numbers when we have fresh series
         self._update_csa_numbers(result)
+        # Update primary length readout (depends on T and RPM input)
+        self._update_primary_length()
 
     def _show_info(self) -> None:
         QMessageBox.information(
@@ -366,3 +407,16 @@ class StepExhaust(QWidget):
         else:
             self.lbl_A_req.setText("A_req = — mm²")
             self.lbl_d_eq.setText("d_eq = — mm")
+
+    def _update_primary_length(self) -> None:
+        # Compute simple primary length estimate from RPM/phi/harm and air T
+        try:
+            phi = float((self.ed_phi_exh.text() or "90").replace(",", "."))
+            harm = int(float((self.ed_harm_exh.text() or "1").replace(",", ".")))
+            rpm = float((self.ed_rpm_exh.text() or "6500").replace(",", "."))
+            T = float(self.state.air.T if self.state.air is not None else 293.15)
+            a_T = F.speed_of_sound(T)
+            L_m = F.primary_length_exhaust_quarterwave(rpm, T, phi_deg=phi, harmonic=harm)
+            self.lbl_len_exh.setText(f"L ≈ {L_m*1000.0:.0f} mm; a(T)={a_T:.0f} m/s")
+        except Exception:
+            self.lbl_len_exh.setText("L ≈ — mm; a(T)=— m/s")

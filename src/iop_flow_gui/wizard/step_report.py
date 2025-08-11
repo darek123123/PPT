@@ -26,7 +26,7 @@ from iop_flow.api import run_all
 from iop_flow.io_json import write_session
 from iop_flow import formulas as F
 from iop_flow.hp import (
-    estimate_hp_rot_total,
+    hp_from_cfm,
     estimate_hp_curve_mode_b,
 )
 
@@ -42,13 +42,15 @@ class StepReport(QWidget):
         root = QVBoxLayout(self)
         self.lbl_stats = QLabel("—", self)
         root.addWidget(self.lbl_stats)
+
         # HP group
         hp_group = QGroupBox("Moc (HP)", self)
         hp_lay = QVBoxLayout(hp_group)
+
         # Mode selector
         mode_row = QHBoxLayout()
-        self.rb_mode_a = QRadioButton("Tryb A – R-O-T (CFM)", self)
-        self.rb_mode_b = QRadioButton("Tryb B – Fizyczny (BSFC/AFR)", self)
+        self.rb_mode_a = QRadioButton("Tryb A – CFM/HP (ROT)", self)
+        self.rb_mode_b = QRadioButton("Tryb B – BSFC/AFR (fizyczny)", self)
         self.rb_mode_a.setChecked(True)
         mode_row.addWidget(self.rb_mode_a)
         mode_row.addWidget(self.rb_mode_b)
@@ -73,14 +75,14 @@ class StepReport(QWidget):
         rng_row.addStretch(1)
         hp_lay.addLayout(rng_row)
 
-        # Mode A params
+        # Mode A params (CFM per HP)
         a_row = QHBoxLayout()
-        self.ed_k_hp_per_cfm = QLineEdit(self)
-        self.ed_k_hp_per_cfm.setPlaceholderText("k_hp_per_cfm (0.23–0.30)")
-        self.ed_k_hp_per_cfm.setToolTip("Stała ROT k × CFM@28\"; orientacyjnie 0.23–0.30")
-        self.ed_k_hp_per_cfm.setText("0.26")
-        a_row.addWidget(QLabel("k:", self))
-        a_row.addWidget(self.ed_k_hp_per_cfm)
+        self.ed_cfm_per_hp = QLineEdit(self)
+        self.ed_cfm_per_hp.setPlaceholderText("CFM/HP (np. 1.67)")
+        self.ed_cfm_per_hp.setToolTip("Reguła kciuka: CFM na 1 HP (np. 1.5–1.8)")
+        self.ed_cfm_per_hp.setText("1.67")
+        a_row.addWidget(QLabel("CFM/HP:", self))
+        a_row.addWidget(self.ed_cfm_per_hp)
         a_row.addStretch(1)
         hp_lay.addLayout(a_row)
 
@@ -113,12 +115,36 @@ class StepReport(QWidget):
         b_row2.addStretch(1)
         hp_lay.addLayout(b_row2)
 
+        # Shared loss factor
+        loss_row = QHBoxLayout()
+        self.ed_loss_pct = QLineEdit(self)
+        self.ed_loss_pct.setPlaceholderText("Straty [%] (np. 10)")
+        self.ed_loss_pct.setToolTip("Utrata między przepływem a mocą na wale (napęd osprzętu, pompa, tarcie)")
+        self.ed_loss_pct.setText("0")
+        loss_row.addWidget(QLabel("Straty:", self))
+        loss_row.addWidget(self.ed_loss_pct)
+        loss_row.addWidget(QLabel("%", self))
+        loss_row.addStretch(1)
+        hp_lay.addLayout(loss_row)
+
         # Plot and footer
         from ..widgets.mpl_canvas import MplCanvas
+        from PySide6.QtWidgets import QToolButton
 
         self.plot_hp = MplCanvas()
         self.plot_hp.set_readout_units("RPM", "HP")
         hp_lay.addWidget(self.plot_hp)
+
+        # top-right info button
+        top_info_row = QHBoxLayout()
+        top_info_row.addStretch(1)
+        self.btn_info_hp = QToolButton(self)
+        self.btn_info_hp.setText("i")
+        self.btn_info_hp.setToolTip("Informacje o metodach szacowania mocy")
+        self.btn_info_hp.clicked.connect(self._show_hp_info)
+        top_info_row.addWidget(self.btn_info_hp)
+        hp_lay.addLayout(top_info_row)
+
         self.lbl_hp_peak = QLabel("—", self)
         hp_lay.addWidget(self.lbl_hp_peak)
 
@@ -145,12 +171,13 @@ class StepReport(QWidget):
             self.ed_rpm_start,
             self.ed_rpm_stop,
             self.ed_rpm_step,
-            self.ed_k_hp_per_cfm,
+            self.ed_cfm_per_hp,
             self.ed_afr,
             self.ed_lambda,
             self.ed_bsfc,
             self.rb_rho_bench,
             self.rb_rho_fixed,
+            self.ed_loss_pct,
         ):
             try:
                 w.clicked.connect(self._refresh)  # type: ignore[attr-defined]
@@ -317,20 +344,53 @@ class StepReport(QWidget):
         peak_hp = 0.0
         peak_rpm = 0.0
         params: dict[str, Any] = {}
+
+        # Bench context
+        try:
+            dp_ref = float(out.get("params", {}).get("dp_ref_inH2O", self.state.air_dp_ref_inH2O))
+        except Exception:
+            dp_ref = self.state.air_dp_ref_inH2O
+        rho_ref = None
+        try:
+            rho_ref = F.air_density(F.AirState(self.state.air.p_tot, self.state.air.T, self.state.air.RH)) if self.state.air else None
+        except Exception:
+            rho_ref = None
+
+        # Common loss factor
+        def _loss_factor() -> float:
+            try:
+                p = float((self.ed_loss_pct.text() or "0").replace(",", "."))
+                return max(0.0, min(0.99, p / 100.0))
+            except Exception:
+                return 0.0
+
+        loss = _loss_factor()
         if mode == "A":
-            # ROT: take max intake q_m3s_ref, convert to CFM and multiply by cylinders
+            # CFM/HP: take max intake q_m3s_ref per port, convert to CFM and multiply by cylinders
             try:
                 intake = (out.get("series", {}) or {}).get("intake", [])
                 q_m3s = [float(r.get("q_m3s_ref") or 0.0) for r in intake]
+                # fallback to exhaust if intake missing
+                if not any(q_m3s):
+                    exhaust = (out.get("series", {}) or {}).get("exhaust", [])
+                    q_m3s = [float(r.get("q_m3s_ref") or 0.0) for r in exhaust]
                 q_peak_cfm = (max(q_m3s) if q_m3s else 0.0) * F.M3S_TO_CFM
                 cyl = getattr(session.engine, "cylinders", 4) or 4
                 cfm_total = q_peak_cfm * float(cyl)
-                k = float((self.ed_k_hp_per_cfm.text() or "0.26").replace(",", "."))
-                hp_tot = estimate_hp_rot_total(cfm_total, k)
+                cfm_per_hp = float((self.ed_cfm_per_hp.text() or "1.67").replace(",", "."))
+                hp_tot = hp_from_cfm(cfm_total, cfm_per_hp)
+                hp_tot *= (1.0 - loss)
                 xs = self._rpm_grid()
                 ys = [hp_tot for _ in xs]
                 peak_hp, peak_rpm = (hp_tot, xs[len(xs)//2] if xs else 0.0)
-                params = {"mode": "A", "k_hp_per_cfm": k, "cfm_total": cfm_total}
+                params = {
+                    "mode": "A",
+                    "cfm_per_hp": cfm_per_hp,
+                    "cfm_total": cfm_total,
+                    "q_peak_cfm_per_port": q_peak_cfm,
+                    "cylinders": cyl,
+                    "loss_frac": loss,
+                }
             except Exception:
                 xs, ys = [], []
         else:
@@ -357,7 +417,7 @@ class StepReport(QWidget):
                     rpm_cap=cap,
                 )
                 xs = list(res["rpm"])
-                ys = list(res["hp"])
+                ys = [v * (1.0 - loss) if (v == v) else v for v in res["hp"]]
                 peak_hp, peak_rpm = res["peak"]
                 params = {
                     "mode": "B",
@@ -365,6 +425,7 @@ class StepReport(QWidget):
                     "lambda_corr": lam,
                     "BSFC": bsfc,
                     "rho_mode": rho_mode,
+                    "loss_frac": loss,
                 }
             except Exception:
                 xs, ys = [], []
@@ -392,12 +453,35 @@ class StepReport(QWidget):
 
         # Save to state results for JSON export
         try:
-            self.state.results["hp"] = {
+            hp_meta: dict[str, Any] = {
                 "mode": ("A" if mode == "A" else "B"),
                 "peak_hp": peak_hp,
                 "rpm_at_peak": peak_rpm,
                 "limits": {"flow": rpm_flow, "csa": rpm_csa},
                 "params": params,
+                "bench": {
+                    "dp_ref_inH2O": dp_ref,
+                    "rho_ref": rho_ref,
+                },
             }
+            # include curve if not too large
+            if xs and ys and len(xs) <= 1000:
+                hp_meta["curve"] = {"rpm": xs, "hp": ys}
+            self.state.results["hp"] = hp_meta
         except Exception:
             pass
+
+    def _show_hp_info(self) -> None:
+        QMessageBox.information(
+            self,
+            "Szacowanie mocy",
+            (
+                "Tryb A – CFM/HP (ROT): HP ≈ CFM_total / (CFM/HP).\n"
+                "CFM_total liczone z Q*@ΔP_ref (szczyt na jeden kanał × liczba cylindrów).\n"
+                "Typowo 1.5–1.8 CFM/HP przy ΔP=28\" H₂O.\n\n"
+                "Tryb B – BSFC/AFR (fizyczny): HP = (ṁ_paliwa [lb/h]) / BSFC,\n"
+                "gdzie ṁ_paliwa = (ρ · Q_silnika · VE / AFR) / λ.\n"
+                "ρ z ławy (Bench) lub stała 1.204 kg/m³.\n\n"
+                "Straty [%] stosowane na końcu jako mnożnik (1−strata).\n"
+            ),
+        )

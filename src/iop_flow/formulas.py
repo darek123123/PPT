@@ -353,9 +353,81 @@ def header_csa_required(q_exh: float, v_exh_target: float) -> float:
 
 
 # -----------------------------------------------------------------------------
-# 11) Walidatory pomocnicze
+# 11) Długości runnerów (ćwierć-fala, 1D) i plenum (reguła k razy Vd)
 # -----------------------------------------------------------------------------
 
+
+def _runner_length_quarterwave_common(rpm: float, T: float, phi_deg: float, harmonic: int) -> float:
+    """Wspólny rdzeń: długość efektywna L [m] z prostego modelu 1D.
+
+    Założenie czasowe: fala ciśnienia przebywa drogę tam i z powrotem w oknie
+    fazowym Δt, stąd 2L ≈ a(T) * Δt. Dodajemy numer harmonicznej (1..N):
+    2L ≈ a(T) * Δt / harmonic.
+
+    Δt = (phi/360) * (60 / RPM)
+
+    Uwaga: To zgrubny model „rules-of-thumb” użyteczny do pierwszych przybliżeń.
+    W praktyce L mierzymy do pierwszej istotnej zmiany przekroju (np. do plenum,
+    stożka dyfuzora, kolektora). Por. podejście znane z Dynomation.
+    """
+    if rpm <= 0 or T <= 0:
+        raise ValueError("rpm>0, T>0.")
+    if not (0.0 < phi_deg <= 360.0):
+        raise ValueError("0<phi_deg<=360.")
+    if harmonic < 1:
+        raise ValueError("harmonic>=1.")
+    a = speed_of_sound(T)
+    dt = (phi_deg / 360.0) * (60.0 / rpm)
+    # 2L ≈ a * dt / harmonic  ->  L ≈ a * dt / (2 * harmonic)
+    return a * dt / (2.0 * float(harmonic))
+
+
+def runner_length_intake_quarterwave(
+    rpm: float, T: float, phi_deg: float = 90.0, harmonic: int = 1
+) -> float:
+    """Szacowana długość runnera ssącego L [m] (model 1D, ćwierć-fala).
+
+    Parametry:
+    - rpm: obroty [1/min]
+    - T: temperatura gazu [K] (do a(T))
+    - phi_deg: kąt fazowy [deg] dla okna biegu fali (np. 60..120)
+    - harmonic: numer harmonicznej (1=podstawowa, 2=2× krótsza, ...)
+
+    Zwraca długość geometryczną w metrach; mierzoną zwykle od talerza zaworu
+    (lub zbieżności kanału) do pierwszej dużej zmiany przekroju (plenum / airbox).
+    """
+    return _runner_length_quarterwave_common(rpm, T, phi_deg, harmonic)
+
+
+def primary_length_exhaust_quarterwave(
+    rpm: float, T: float, phi_deg: float = 90.0, harmonic: int = 1
+) -> float:
+    """Szacowana długość „primary” wydechu L [m] (model 1D, ćwierć-fala).
+
+    Parametry jak w runner_length_intake_quarterwave; w praktyce L liczymy do
+    pierwszego trójnika/stożka/zmiany przekroju. Model jest poglądowy.
+    """
+    return _runner_length_quarterwave_common(rpm, T, phi_deg, harmonic)
+
+
+def plenum_volume_hint_from_displacement(displ_L: float, cyl: int, k: float = 1.5) -> float:
+    """Zgrubna podpowiedź objętości plenum [m^3] na podstawie pojemności silnika.
+
+    Prosta reguła: V_plenum ≈ k × Vd_total. Domyślnie k=1.5 dla wolnossących.
+    Wartość dodatnia, liczona dla wspólnego plenum; zwracamy w m^3.
+
+    Uwaga: "cyl" podajemy w celu walidacji (cyl>=1); obecny wariant wykorzystuje
+    całkowitą pojemność Vd_total. Dla ITB/reguł per-cylinder można przyjąć k
+    względem Vd/cyl i przemnożyć przez liczbę aktywnych cylindrów w danym banku.
+    """
+    if displ_L <= 0 or cyl < 1 or k <= 0:
+        raise ValueError("displ_L>0, cyl>=1, k>0.")
+    return (displ_L * k) * 1e-3
+
+
+# -----------------------------------------------------------------------------
+# 12) Walidatory pomocnicze
+# -----------------------------------------------------------------------------
 
 def clamp(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
