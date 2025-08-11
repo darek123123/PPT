@@ -92,6 +92,8 @@ class WizardState:
                 "valve_int_m": self.geometry.valve_int_m,
                 "valve_exh_m": self.geometry.valve_exh_m,
                 "throat_m": self.geometry.throat_m,
+                "throat_int_m": self.geometry.throat_int_m,
+                "throat_exh_m": self.geometry.throat_exh_m,
                 "stem_m": self.geometry.stem_m,
                 "port_volume_cc": self.geometry.port_volume_cc,
                 "port_length_m": self.geometry.port_length_m,
@@ -131,6 +133,8 @@ class WizardState:
                         valve_int_m=float(geom["valve_int_m"]),
                         valve_exh_m=float(geom["valve_exh_m"]),
                         throat_m=float(geom["throat_m"]),
+                        throat_int_m=(float(geom["throat_int_m"]) if geom.get("throat_int_m") is not None else None),
+                        throat_exh_m=(float(geom["throat_exh_m"]) if geom.get("throat_exh_m") is not None else None),
                         stem_m=float(geom["stem_m"]),
                         port_volume_cc=(float(geom["port_volume_cc"]) if geom.get("port_volume_cc") is not None else None),
                         port_length_m=(float(geom["port_length_m"]) if geom.get("port_length_m") is not None else None),
@@ -325,11 +329,15 @@ class WizardState:
 
         # Geometry
         geom = preset["geometry"]
+        throat_int_m = geom.get("intake_valve", 35.0) * 0.85 / 1000.0
+        throat_exh_m = geom.get("exhaust_valve", 30.0) * 0.90 / 1000.0
         self.geometry = Geometry(
             bore_m=geom.get("bore", 86.0) / 1000.0,
             valve_int_m=geom.get("intake_valve", 35.0) / 1000.0,
             valve_exh_m=geom.get("exhaust_valve", 30.0) / 1000.0,
-            throat_m=geom.get("intake_valve", 35.0) * 0.85 / 1000.0,  # estimate throat as 85% of valve
+            throat_m=throat_int_m,  # keep legacy throat_m ~= intake throat for compatibility
+            throat_int_m=throat_int_m,
+            throat_exh_m=throat_exh_m,
             stem_m=geom.get("stem", 5.5) / 1000.0,
             port_volume_cc=geom.get("port_volume_int", 225.0),
             port_length_m=geom.get("port_len", 150.0) / 1000.0,
@@ -422,9 +430,12 @@ def is_valid_step_geometry(s: WizardState) -> bool:
         g.bore_m > 0 and g.valve_int_m > 0 and g.valve_exh_m > 0 and g.throat_m > 0 and g.stem_m > 0
     ):
         return False
-    if not (g.stem_m < g.throat_m):
+    # Use per-side throats with fallback
+    t_i = g.throat_int_m if g.throat_int_m is not None else g.throat_m
+    t_e = g.throat_exh_m if g.throat_exh_m is not None else g.throat_m
+    if not (g.stem_m < min(t_i, t_e)):
         return False
-    if not (g.valve_int_m > g.throat_m and g.valve_exh_m > g.throat_m):
+    if not (g.valve_int_m > t_i and g.valve_exh_m > t_e):
         return False
     if g.port_volume_cc is not None and g.port_volume_cc < 0:
         return False
@@ -514,6 +525,8 @@ def set_geometry_from_ui(
     valve_int_mm: float,
     valve_exh_mm: float,
     throat_mm: float,
+    throat_int_mm: Optional[float] = None,
+    throat_exh_mm: Optional[float] = None,
     stem_mm: float,
     seat_angle_deg: Optional[float] = None,
     seat_width_mm: Optional[float] = None,
@@ -526,6 +539,8 @@ def set_geometry_from_ui(
             valve_int_m=valve_int_mm / 1000.0,
             valve_exh_m=valve_exh_mm / 1000.0,
             throat_m=throat_mm / 1000.0,
+            throat_int_m=(throat_int_mm / 1000.0) if throat_int_mm is not None else None,
+            throat_exh_m=(throat_exh_mm / 1000.0) if throat_exh_mm is not None else None,
             stem_m=stem_mm / 1000.0,
             port_volume_cc=port_volume_cc if port_volume_cc is not None else None,
             port_length_m=port_length_mm / 1000.0 if port_length_mm is not None else None,

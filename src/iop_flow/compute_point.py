@@ -39,7 +39,7 @@ def compute_metrics_for_point(
     Oblicz metryki dla pojedynczego punktu:
     - wybór d_valve po side: intake -> geom.valve_int_m, exhaust -> geom.valve_exh_m
     - A_curtain = F.area_curtain(d_valve, np.lift_m)
-    - A_throat = F.area_throat(geom.throat_m, geom.stem_m)
+    - A_throat: dla 'intake' użyj geom.throat_int_m (jeśli podane) inaczej throat_m; dla 'exhaust' użyj throat_exh_m lub throat_m
     - L/D = F.ld_ratio(np.lift_m, d_valve)
     - A_eff:
         - "smoothmin": F.area_eff_smoothmin(A_curtain, A_throat)
@@ -52,7 +52,13 @@ def compute_metrics_for_point(
     d_valve = geom.valve_int_m if side == "intake" else geom.valve_exh_m
 
     A_curtain = F.area_curtain(d_valve, np.lift_m)
-    A_throat = F.area_throat(geom.throat_m, geom.stem_m)
+    # wybór gardzieli zależnie od strony z bezpiecznym fallbackiem
+    throat_d = (
+        (geom.throat_int_m if geom.throat_int_m is not None else geom.throat_m)
+        if side == "intake"
+        else (geom.throat_exh_m if geom.throat_exh_m is not None else geom.throat_m)
+    )
+    A_throat = F.area_throat(throat_d, geom.stem_m)
     L_over_D = F.ld_ratio(np.lift_m, d_valve)
 
     if eff_mode == "smoothmin":
@@ -90,6 +96,7 @@ def compute_metrics_for_point(
         "dp_Pa_ref": np.dp_Pa_ref,
         "A_curtain": A_curtain,
         "A_throat": A_throat,
+    "throat_used_m": throat_d,
         "A_eff": A_eff,
         "A_ref_key": A_ref_key,
         "L_over_D": L_over_D,

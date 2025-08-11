@@ -145,9 +145,11 @@ class StepValidate(QWidget):
 
         g = self.state.geometry
         if g is not None:
-            if g.stem_m >= g.throat_m:
+            t_i = g.throat_int_m if getattr(g, "throat_int_m", None) is not None else g.throat_m
+            t_e = g.throat_exh_m if getattr(g, "throat_exh_m", None) is not None else g.throat_m
+            if g.stem_m >= min(t_i, t_e):
                 self._add_item("ERROR", "Średnica trzonka (stem) ≥ throat")
-            if not (g.valve_int_m > g.throat_m and g.valve_exh_m > g.throat_m):
+            if not (g.valve_int_m > t_i and g.valve_exh_m > t_e):
                 self._add_item("ERROR", "Throat nie jest mniejszy od średnic zaworów")
 
         # Missing dp hints

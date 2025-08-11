@@ -36,7 +36,8 @@ class StepGeometry(QWidget):
         self.ed_bore = QLineEdit(self)
         self.ed_valve_i = QLineEdit(self)
         self.ed_valve_e = QLineEdit(self)
-        self.ed_throat = QLineEdit(self)
+        self.ed_throat_i = QLineEdit(self)
+        self.ed_throat_e = QLineEdit(self)
         self.ed_stem = QLineEdit(self)
         self.ed_seat_angle = QLineEdit(self)
         self.ed_seat_width = QLineEdit(self)
@@ -46,7 +47,8 @@ class StepGeometry(QWidget):
         form.addRow("Adapter/Bore [mm]", self.ed_bore)
         form.addRow("Valve INT [mm]", self.ed_valve_i)
         form.addRow("Valve EXH [mm]", self.ed_valve_e)
-        form.addRow("Throat [mm]", self.ed_throat)
+        form.addRow("Throat INT [mm]", self.ed_throat_i)
+        form.addRow("Throat EXH [mm]", self.ed_throat_e)
         form.addRow("Stem [mm]", self.ed_stem)
         form.addRow("Seat angle [deg] (opc.)", self.ed_seat_angle)
         form.addRow("Seat width [mm] (opc.)", self.ed_seat_width)
@@ -55,6 +57,7 @@ class StepGeometry(QWidget):
 
         # Prefill with defaults or last-used values to avoid blocking the wizard
         settings = QSettings("iop-flow", "wizard")
+
         def _load(key: str, fallback: Optional[str] = None) -> Optional[str]:
             val = settings.value(key, None, type=str)
             if val is None or str(val).strip() == "":
@@ -67,23 +70,22 @@ class StepGeometry(QWidget):
             self.ed_bore.setText(f"{g.bore_m * 1000:.1f}")
             self.ed_valve_i.setText(f"{g.valve_int_m * 1000:.1f}")
             self.ed_valve_e.setText(f"{g.valve_exh_m * 1000:.1f}")
-            self.ed_throat.setText(f"{g.throat_m * 1000:.1f}")
+            # Prefer split throats if available
+            t_i = g.throat_int_m if getattr(g, "throat_int_m", None) is not None else g.throat_m
+            t_e = g.throat_exh_m if getattr(g, "throat_exh_m", None) is not None else g.throat_m
+            self.ed_throat_i.setText(f"{t_i * 1000:.1f}")
+            self.ed_throat_e.setText(f"{t_e * 1000:.1f}")
             self.ed_stem.setText(f"{g.stem_m * 1000:.1f}")
             self.ed_seat_angle.setText("" if g.seat_angle_deg is None else f"{g.seat_angle_deg:.1f}")
-            self.ed_seat_width.setText(
-                "" if g.seat_width_m is None else f"{g.seat_width_m * 1000:.2f}"
-            )
-            self.ed_port_vol.setText(
-                "" if g.port_volume_cc is None else f"{g.port_volume_cc:.1f}"
-            )
-            self.ed_port_len.setText(
-                "" if g.port_length_m is None else f"{g.port_length_m * 1000:.1f}"
-            )
+            self.ed_seat_width.setText("" if g.seat_width_m is None else f"{g.seat_width_m * 1000:.2f}")
+            self.ed_port_vol.setText("" if g.port_volume_cc is None else f"{g.port_volume_cc:.1f}")
+            self.ed_port_len.setText("" if g.port_length_m is None else f"{g.port_length_m * 1000:.1f}")
         else:
             self.ed_bore.setText(_load("geom_default/bore_mm", "86.0") or "86.0")
             self.ed_valve_i.setText(_load("geom_default/valve_i_mm", "33.0") or "33.0")
             self.ed_valve_e.setText(_load("geom_default/valve_e_mm", "28.0") or "28.0")
-            self.ed_throat.setText(_load("geom_default/throat_mm", "27.0") or "27.0")
+            self.ed_throat_i.setText(_load("geom_default/throat_int_mm", _load("geom_default/throat_mm", "27.0")) or "27.0")
+            self.ed_throat_e.setText(_load("geom_default/throat_exh_mm", _load("geom_default/throat_mm", "27.0")) or "27.0")
             self.ed_stem.setText(_load("geom_default/stem_mm", "7.0") or "7.0")
             self.ed_seat_angle.setText(_load("geom_default/seat_angle_deg", "45.0") or "45.0")
             self.ed_seat_width.setText(_load("geom_default/seat_width_mm", "1.5") or "1.5")
@@ -100,7 +102,7 @@ class StepGeometry(QWidget):
         right = QVBoxLayout(right_wrap)
         root.addWidget(right_wrap, 1)
 
-        self.lbl_Ath = QLabel("A_throat: — mm²", self)
+        self.lbl_Ath = QLabel("A_throat INT/EXH: — / — mm²", self)
         right.addWidget(self.lbl_Ath)
         self.preview = MplCanvas()
         right.addWidget(self.preview)
@@ -115,7 +117,8 @@ class StepGeometry(QWidget):
             self.ed_bore,
             self.ed_valve_i,
             self.ed_valve_e,
-            self.ed_throat,
+            self.ed_throat_i,
+            self.ed_throat_e,
             self.ed_stem,
             self.ed_seat_angle,
             self.ed_seat_width,
@@ -140,20 +143,23 @@ class StepGeometry(QWidget):
         bore = f(self.ed_bore)
         vi = f(self.ed_valve_i)
         ve = f(self.ed_valve_e)
-        th = f(self.ed_throat)
+        th_i = f(self.ed_throat_i)
+        th_e = f(self.ed_throat_e)
         st = f(self.ed_stem)
         ang = f(self.ed_seat_angle)
         sw = f(self.ed_seat_width)
         pv = f(self.ed_port_vol)
         pl = f(self.ed_port_len)
 
-        if all(x is not None for x in (bore, vi, ve, th, st)):
+        if all(x is not None for x in (bore, vi, ve, th_i, th_e, st)):
             set_geometry_from_ui(
                 self.state,
                 bore_mm=bore or 0.0,
                 valve_int_mm=vi or 0.0,
                 valve_exh_mm=ve or 0.0,
-                throat_mm=th or 0.0,
+                throat_mm=th_i or 0.0,  # legacy throat_m ~ intake throat; split kept for compatibility
+                throat_int_mm=th_i,
+                throat_exh_mm=th_e,
                 stem_mm=st or 0.0,
                 seat_angle_deg=ang,
                 seat_width_mm=sw,
@@ -166,7 +172,8 @@ class StepGeometry(QWidget):
                 settings.setValue("geom_default/bore_mm", self.ed_bore.text())
                 settings.setValue("geom_default/valve_i_mm", self.ed_valve_i.text())
                 settings.setValue("geom_default/valve_e_mm", self.ed_valve_e.text())
-                settings.setValue("geom_default/throat_mm", self.ed_throat.text())
+                settings.setValue("geom_default/throat_int_mm", self.ed_throat_i.text())
+                settings.setValue("geom_default/throat_exh_mm", self.ed_throat_e.text())
                 settings.setValue("geom_default/stem_mm", self.ed_stem.text())
                 settings.setValue("geom_default/seat_angle_deg", self.ed_seat_angle.text())
                 settings.setValue("geom_default/seat_width_mm", self.ed_seat_width.text())
@@ -180,8 +187,11 @@ class StepGeometry(QWidget):
         # preview: A_throat and L/D lines
         g = self.state.geometry
         if g:
-            Ath_mm2 = F.area_throat(g.throat_m, g.stem_m) * 1e6
-            self.lbl_Ath.setText(f"A_throat: {Ath_mm2:.2f} mm²")
+            t_i_m = g.throat_int_m if getattr(g, "throat_int_m", None) is not None else g.throat_m
+            t_e_m = g.throat_exh_m if getattr(g, "throat_exh_m", None) is not None else g.throat_m
+            Ath_i_mm2 = F.area_throat(t_i_m, g.stem_m) * 1e6
+            Ath_e_mm2 = F.area_throat(t_e_m, g.stem_m) * 1e6
+            self.lbl_Ath.setText(f"A_throat INT/EXH: {Ath_i_mm2:.2f} / {Ath_e_mm2:.2f} mm²")
             # L/D vs lift for INT and EXH
             lifts = [i / 10.0 for i in range(0, 501)]  # 0..50 mm step 0.1
             x = lifts
@@ -192,7 +202,7 @@ class StepGeometry(QWidget):
             self.preview.plot_xy(x, ld_e, label="L/D EXH")
             self.preview.render()
         else:
-            self.lbl_Ath.setText("A_throat: — mm²")
+            self.lbl_Ath.setText("A_throat INT/EXH: — / — mm²")
             self.preview.clear()
             self.preview.render()
 
@@ -206,11 +216,14 @@ class StepGeometry(QWidget):
             ed.setToolTip("" if good else tip)
 
         g = self.state.geometry
-        req = [self.ed_bore, self.ed_valve_i, self.ed_valve_e, self.ed_throat, self.ed_stem]
+        req = [self.ed_bore, self.ed_valve_i, self.ed_valve_e, self.ed_throat_i, self.ed_throat_e, self.ed_stem]
         for ed in req:
             mark(ed, g is not None)
         # relations if geometry present
         if g:
-            mark(self.ed_stem, g.stem_m < g.throat_m, "stem < throat")
-            mark(self.ed_valve_i, g.valve_int_m > g.throat_m, "> throat")
-            mark(self.ed_valve_e, g.valve_exh_m > g.throat_m, "> throat")
+            # Use per-side throats where available
+            t_i_m = g.throat_int_m if getattr(g, "throat_int_m", None) is not None else g.throat_m
+            t_e_m = g.throat_exh_m if getattr(g, "throat_exh_m", None) is not None else g.throat_m
+            mark(self.ed_stem, g.stem_m < min(t_i_m, t_e_m), "stem < throat")
+            mark(self.ed_valve_i, g.valve_int_m > t_i_m, "> throat")
+            mark(self.ed_valve_e, g.valve_exh_m > t_e_m, "> throat")

@@ -74,6 +74,9 @@ class Geometry:
     valve_exh_m: float
     throat_m: float
     stem_m: float
+    # Opcjonalne rozdzielenie gardzieli dla INT/EXH (jeśli None, użyj throat_m)
+    throat_int_m: Optional[float] = None
+    throat_exh_m: Optional[float] = None
     port_volume_cc: Optional[float] = None
     port_length_m: Optional[float] = None
     seat_angle_deg: Optional[float] = None
@@ -84,9 +87,18 @@ class Geometry:
         _pos("valve_int_m", self.valve_int_m)
         _pos("valve_exh_m", self.valve_exh_m)
         _pos("throat_m", self.throat_m)
+        if self.throat_int_m is not None:
+            _pos("throat_int_m", self.throat_int_m)
+        if self.throat_exh_m is not None:
+            _pos("throat_exh_m", self.throat_exh_m)
         _nonneg("stem_m", self.stem_m)
+        # stem must be smaller than each effective throat
         if self.stem_m >= self.throat_m:
             raise ValueError("stem_m must be < throat_m")
+        if self.throat_int_m is not None and self.stem_m >= self.throat_int_m:
+            raise ValueError("stem_m must be < throat_int_m")
+        if self.throat_exh_m is not None and self.stem_m >= self.throat_exh_m:
+            raise ValueError("stem_m must be < throat_exh_m")
         if self.port_volume_cc is not None:
             _pos("port_volume_cc", self.port_volume_cc)
         if self.port_length_m is not None:
