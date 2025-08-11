@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QWidget,
@@ -24,6 +24,8 @@ DEFAULT_KEYS: Sequence[str] = ("q_m3s_ref", "Cd_ref", "V_ref", "Mach_ref")
 
 
 class CompareView(QWidget):
+    back_requested = Signal()
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -34,6 +36,13 @@ class CompareView(QWidget):
         self.settings = QSettings("iop_flow_gui", "compare_view")
 
         root = QVBoxLayout(self)
+
+        # Top/back row
+        top_row = QHBoxLayout()
+        self.btn_back = QPushButton("\u2190 Wróć", self)
+        top_row.addWidget(self.btn_back)
+        top_row.addStretch(1)
+        root.addLayout(top_row)
 
         # Buttons row
         btn_row = QHBoxLayout()
@@ -62,6 +71,7 @@ class CompareView(QWidget):
         root.addLayout(plots)
 
         # Wire up
+        self.btn_back.clicked.connect(lambda: self.back_requested.emit())
         self.btn_before.clicked.connect(lambda: self._pick_file("before"))
         self.btn_after.clicked.connect(lambda: self._pick_file("after"))
         self.btn_run.clicked.connect(self._on_run)

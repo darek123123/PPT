@@ -5,6 +5,7 @@ from typing import Any, Dict, Literal, Optional, Tuple, List
 
 from iop_flow.schemas import AirConditions, Engine, Geometry
 from iop_flow.schemas import Session, FlowSeries, LiftPoint, CSAProfile
+from iop_flow import formulas as F
 
 
 DisplayUnits = Literal["workshop_pl"]
@@ -55,6 +56,10 @@ class WizardState:
     csa_min_m2: Optional[float] = None
     csa_avg_m2: Optional[float] = None
     engine_v_target: Optional[float] = None  # [m/s]
+
+    # Optional buffers for example points (not shown in UI)
+    points_int: List[Dict[str, Any]] = field(default_factory=list)
+    points_exh: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -200,6 +205,66 @@ class WizardState:
             lifts=series,
             csa=csa_profile,
         )
+
+    # Presets
+    def apply_defaults_preset(self) -> None:
+        """Populate wizard state with a realistic default configuration and data."""
+        # Meta
+        self.meta.update(
+            {
+                "project_name": "Domyślna 2.0L",
+                "client": "Przykład",
+                "date_iso": "",
+                "mode": "baseline",
+                "display_units": "workshop_pl",
+                "notes": None,
+            }
+        )
+        # Bench & Air
+        self.air_dp_ref_inH2O = 28.0
+        self.air_dp_meas_inH2O = None
+        self.air = AirConditions(p_tot=101_325.0, T=F.C_to_K(20.0), RH=0.50)
+        # Engine
+        self.engine = Engine(displ_L=2.0, cylinders=4, ve=0.95)
+        self.engine_target_rpm = 6500
+        # Geometry (mm -> m)
+        self.geometry = Geometry(
+            bore_m=86.0 / 1000.0,
+            valve_int_m=33.0 / 1000.0,
+            valve_exh_m=28.0 / 1000.0,
+            throat_m=27.0 / 1000.0,
+            stem_m=6.0 / 1000.0,
+            port_volume_cc=220.0,
+            port_length_m=150.0 / 1000.0,
+            seat_angle_deg=45.0,
+            seat_width_m=1.5 / 1000.0,
+        )
+        # Plan lifty 1..9 mm, dp 28"
+        self.lifts_intake_mm = [float(x) for x in range(1, 10)]
+        self.lifts_exhaust_mm = [float(x) for x in range(1, 10)]
+        self.dp_per_point_inH2O = {}
+        for lift in self.lifts_intake_mm:
+            self.dp_per_point_inH2O[("intake", round(lift, 3))] = 28.0
+        for lift in self.lifts_exhaust_mm:
+            self.dp_per_point_inH2O[("exhaust", round(lift, 3))] = 28.0
+        self.will_enter_swirl = True
+    # Measurements default example values (CFM @ 28"). Intake with swirl RPM, Exhaust without swirl
+        int_q = [20, 38, 62, 85, 105, 120, 132, 138, 140]
+        int_sw = [200, 260, 320, 380, 430, 470, 500, 520, 540]
+        self.points_int = [
+            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": None, "swirl_rpm": s}
+            for lift, q, s in zip(self.lifts_intake_mm, int_q, int_sw)
+        ]
+        exh_q = [14, 28, 45, 60, 74, 84, 94, 100, 105]
+        self.points_exh = [
+            {"lift_mm": lift, "q_cfm": q, "dp_inH2O": None, "swirl_rpm": None}
+            for lift, q in zip(self.lifts_exhaust_mm, exh_q)
+        ]
+        # Apply into measurement buffers
+        self.measure_intake = [dict(r) for r in self.points_int]
+        self.measure_exhaust = [dict(r) for r in self.points_exh]
+        # CSA and target velocity
+        self.set_csa_from_ui(min_csa_mm2=380.0, avg_csa_mm2=450.0, v_target=100.0)
 
 
 # Validators

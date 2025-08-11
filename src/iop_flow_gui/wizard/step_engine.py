@@ -76,16 +76,32 @@ class StepEngine(QWidget):
         self.sig_valid_changed.emit(ok)
 
     def _update_plot(self) -> None:
-        # draw Q_eng vs RPM
+        # draw Q_eng vs RPM with guards
         self.canvas.clear()
-        displ = (self.state.engine.displ_L if self.state.engine else None) or 0.0
-        ve = (
-            self.state.engine.ve
-            if (self.state.engine and self.state.engine.ve is not None)
-            else 0.95
-        )
+        e = self.state.engine
+        ve = e.ve if (e and (e.ve or 0) > 0) else 0.95
+        displ = e.displ_L if (e and e.displ_L and e.displ_L > 0) else None
+        if not displ:
+            # show hint when displacement invalid
+            try:
+                self.canvas.ax.clear()
+                self.canvas.ax.text(0.5, 0.5, "Uzupełnij silnik (L > 0)", ha="center", va="center")
+                self.canvas.render()
+            except Exception:
+                pass
+            return
         rpms = list(range(1000, 9001, 500))
-        q = [F.engine_volumetric_flow(displ, r, ve) for r in rpms]
+        try:
+            q = [F.engine_volumetric_flow(displ, r, ve) for r in rpms]
+        except ValueError:
+            # fallback if any calc fails
+            try:
+                self.canvas.ax.clear()
+                self.canvas.ax.text(0.5, 0.5, "Błąd obliczeń Q_eng", ha="center", va="center")
+                self.canvas.render()
+            except Exception:
+                pass
+            return
         self.canvas.plot_xy(rpms, q, label="Q_eng [m³/s]")
         self.canvas.render()
 

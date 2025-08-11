@@ -40,6 +40,7 @@ class StepPlan(QWidget):
         form.addRow("Start [mm]", self.ed_start)
         form.addRow("Stop [mm]", self.ed_stop)
         form.addRow("Step [mm]", self.ed_step)
+        # action row
         row_buttons = QHBoxLayout()
         left.addLayout(row_buttons)
         self.btn_gen_i = QPushButton("Generuj (INT)", self)
@@ -110,6 +111,7 @@ class StepPlan(QWidget):
         self._fill_table(self.tbl_i, [])
         self._fill_table(self.tbl_e, [])
         self._on_changed()
+
 
     def _fill_table(self, tbl: QTableWidget, lifts: List[float]) -> None:
         tbl.blockSignals(True)

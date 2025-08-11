@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QSettings
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -52,6 +52,48 @@ class StepGeometry(QWidget):
         form.addRow("Seat width [mm] (opc.)", self.ed_seat_width)
         form.addRow("Port volume [cc] (opc.)", self.ed_port_vol)
         form.addRow("Port length [mm] (opc.)", self.ed_port_len)
+
+        # Prefill with defaults or last-used values to avoid blocking the wizard
+        settings = QSettings("iop-flow", "wizard")
+        def _load(key: str, fallback: Optional[str] = None) -> Optional[str]:
+            val = settings.value(key, None, type=str)
+            if val is None or str(val).strip() == "":
+                return fallback
+            return str(val)
+
+        # Use state if already set, otherwise last-used, otherwise sensible defaults
+        if self.state.geometry:
+            g = self.state.geometry
+            self.ed_bore.setText(f"{g.bore_m * 1000:.1f}")
+            self.ed_valve_i.setText(f"{g.valve_int_m * 1000:.1f}")
+            self.ed_valve_e.setText(f"{g.valve_exh_m * 1000:.1f}")
+            self.ed_throat.setText(f"{g.throat_m * 1000:.1f}")
+            self.ed_stem.setText(f"{g.stem_m * 1000:.1f}")
+            self.ed_seat_angle.setText("" if g.seat_angle_deg is None else f"{g.seat_angle_deg:.1f}")
+            self.ed_seat_width.setText(
+                "" if g.seat_width_m is None else f"{g.seat_width_m * 1000:.2f}"
+            )
+            self.ed_port_vol.setText(
+                "" if g.port_volume_cc is None else f"{g.port_volume_cc:.1f}"
+            )
+            self.ed_port_len.setText(
+                "" if g.port_length_m is None else f"{g.port_length_m * 1000:.1f}"
+            )
+        else:
+            self.ed_bore.setText(_load("geom_default/bore_mm", "86.0") or "86.0")
+            self.ed_valve_i.setText(_load("geom_default/valve_i_mm", "33.0") or "33.0")
+            self.ed_valve_e.setText(_load("geom_default/valve_e_mm", "28.0") or "28.0")
+            self.ed_throat.setText(_load("geom_default/throat_mm", "27.0") or "27.0")
+            self.ed_stem.setText(_load("geom_default/stem_mm", "7.0") or "7.0")
+            self.ed_seat_angle.setText(_load("geom_default/seat_angle_deg", "45.0") or "45.0")
+            self.ed_seat_width.setText(_load("geom_default/seat_width_mm", "1.5") or "1.5")
+            # Optional fields left blank by default, but load if previously saved
+            pv = _load("geom_default/port_volume_cc", None)
+            pl = _load("geom_default/port_length_mm", None)
+            if pv is not None:
+                self.ed_port_vol.setText(pv)
+            if pl is not None:
+                self.ed_port_len.setText(pl)
 
         # right preview
         right_wrap = QWidget(self)
@@ -118,6 +160,20 @@ class StepGeometry(QWidget):
                 port_volume_cc=pv,
                 port_length_mm=pl,
             )
+            # Persist last-used inputs for convenience across sessions
+            try:
+                settings = QSettings("iop-flow", "wizard")
+                settings.setValue("geom_default/bore_mm", self.ed_bore.text())
+                settings.setValue("geom_default/valve_i_mm", self.ed_valve_i.text())
+                settings.setValue("geom_default/valve_e_mm", self.ed_valve_e.text())
+                settings.setValue("geom_default/throat_mm", self.ed_throat.text())
+                settings.setValue("geom_default/stem_mm", self.ed_stem.text())
+                settings.setValue("geom_default/seat_angle_deg", self.ed_seat_angle.text())
+                settings.setValue("geom_default/seat_width_mm", self.ed_seat_width.text())
+                settings.setValue("geom_default/port_volume_cc", self.ed_port_vol.text())
+                settings.setValue("geom_default/port_length_mm", self.ed_port_len.text())
+            except Exception:
+                pass
         else:
             self.state.geometry = None
 

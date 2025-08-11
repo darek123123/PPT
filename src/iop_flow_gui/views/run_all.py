@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtCore import Signal
 
 from iop_flow.io_json import read_session, write_session
 from iop_flow.api import run_all as run_all_api
@@ -32,6 +33,8 @@ COLS = [
 
 
 class RunAllView(QWidget):
+    back_requested = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self._session = None
@@ -40,6 +43,12 @@ class RunAllView(QWidget):
         lay = QVBoxLayout(self)
 
         # buttons
+        top_row = QHBoxLayout()
+        self.btn_back = QPushButton("\u2190 Wróć", self)
+        top_row.addWidget(self.btn_back)
+        top_row.addStretch(1)
+        lay.addLayout(top_row)
+
         btn_row = QHBoxLayout()
         self.btn_load = QPushButton("Wczytaj Session JSON…", self)
         self.btn_run = QPushButton("Uruchom", self)
@@ -67,6 +76,7 @@ class RunAllView(QWidget):
         lay.addLayout(plot_row)
 
         # wiring
+        self.btn_back.clicked.connect(lambda: self.back_requested.emit())
         self.btn_load.clicked.connect(self._on_load)
         self.btn_run.clicked.connect(self._on_run)
         self.btn_save.clicked.connect(self._on_save)

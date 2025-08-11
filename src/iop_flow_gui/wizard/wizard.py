@@ -43,6 +43,12 @@ class WizardWindow(QMainWindow):
         self.settings = QSettings("iop-flow", "wizard")
         self._expert_mode = bool(self.settings.value("expert_mode", False))
 
+        # Apply built-in defaults at startup so wizard opens pre-filled
+        try:
+            self.state.apply_defaults_preset()
+        except Exception:
+            pass
+
         # menu
         mb = QMenuBar(self)
         self.setMenuBar(mb)
@@ -126,10 +132,13 @@ class WizardWindow(QMainWindow):
             self.step7,
             self.step8,
         ):
-            s.sig_valid_changed.connect(lambda ok: self._update_nav())
+            # steps 1-8 affect navigation state
+            s.sig_valid_changed.connect(self._update_nav)
         # steps 9 and 10 don't gate Next (end of wizard)
 
         self._update_nav()
+
+    # Removed DEMO loader; startup uses built-in defaults
 
     def _update_nav(self) -> None:
         idx = self.stack.currentIndex()

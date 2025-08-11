@@ -44,9 +44,10 @@ class StepExhaust(QWidget):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["lift_mm", "q_cfm", "dp_inH2O", "swirl_rpm"])
-        self.table.setEditTriggers(self.table.AllEditTriggers)
-        self.table.setSelectionBehavior(self.table.SelectItems)
-        self.table.setSelectionMode(self.table.ContiguousSelection)
+        from PySide6.QtWidgets import QAbstractItemView
+        self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.table.setSelectionMode(QAbstractItemView.ContiguousSelection)
         self.table.viewport().installEventFilter(self)
         left.addWidget(self.table)
 

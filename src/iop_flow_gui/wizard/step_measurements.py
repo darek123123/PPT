@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
+    QAbstractItemView,
 )
 
 from iop_flow.api import run_all
@@ -46,9 +47,9 @@ class _SideTable(QWidget):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["lift_mm", "q_cfm", "dp_inH2O", "swirl_rpm"])
-        self.table.setEditTriggers(self.table.AllEditTriggers)
-        self.table.setSelectionBehavior(self.table.SelectItems)
-        self.table.setSelectionMode(self.table.ContiguousSelection)
+        self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
+        self.table.setSelectionMode(QAbstractItemView.ContiguousSelection)
         lay.addWidget(self.table)
 
         counts = QHBoxLayout()
@@ -262,6 +263,7 @@ class _SideTable(QWidget):
         self.sig_changed.emit()
 
 
+
 class StepMeasurements(QWidget):
     sig_valid_changed = Signal(bool)
 
@@ -331,6 +333,18 @@ class StepMeasurements(QWidget):
     def _recompute(self) -> None:
         if not self._prev_steps_ok():
             return
+        # Guard: skip compute if there is no measurement data yet
+        if not (self.state.measure_intake or self.state.measure_exhaust):
+            try:
+                self.plot_cd.clear()
+                self.plot_q.clear()
+                self.plot_cd.render()
+                self.plot_q.render()
+                self.lbl_params.setText("—")
+                self.lbl_ei.setText("")
+            except Exception:
+                pass
+            return
         try:
             session: Session = self.state.build_session_from_wizard_for_compute()
         except Exception:
@@ -339,12 +353,30 @@ class StepMeasurements(QWidget):
         import time
 
         t0 = time.perf_counter()
-        result = run_all(
-            session,
-            dp_ref_inH2O=(prefs.dp_ref_inH2O or 28.0),
-            a_ref_mode=prefs.a_ref_mode,
-            eff_mode=prefs.eff_mode,
-        )
+        try:
+            result = run_all(
+                session,
+                dp_ref_inH2O=(prefs.dp_ref_inH2O or 28.0),
+                a_ref_mode=prefs.a_ref_mode,
+                eff_mode=prefs.eff_mode,
+            )
+        except Exception:
+            # Gracefully handle computation errors when data is incomplete
+            try:
+                self.plot_cd.clear()
+                self.plot_q.clear()
+                self.plot_cd.render()
+                self.plot_q.render()
+                self.lbl_params.setText("—")
+                self.lbl_ei.setText("")
+                win = self.window()
+                if hasattr(win, "statusBar"):
+                    sb = win.statusBar()
+                    if sb is not None:
+                        sb.showMessage("Błąd obliczeń (pomiń do czasu uzupełnienia danych)", 2500)
+            except Exception:
+                pass
+            return
         series = result.get("series", {})
         active_idx = self.tabs.currentIndex()
         side = "intake" if active_idx == 0 else "exhaust"
