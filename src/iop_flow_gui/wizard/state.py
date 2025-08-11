@@ -285,15 +285,13 @@ class WizardState:
     def apply_defaults_preset(self) -> None:
         """Populate wizard state with Honda K20A2 preset from data/preset_k20a2.json."""
         import json
-        import os
+        from pathlib import Path
         from iop_flow.schemas import AirConditions, Engine, Geometry
-        # state.py -> wizard -> iop_flow_gui -> src -> project root (need 4 up to reach root containing 'data')
-        preset_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            "data",
-            "preset_k20a2.json",
-        )
-        with open(preset_path, "r", encoding="utf-8") as f:
+        # src/iop_flow_gui/wizard/state.py -> parents[3] == project root
+        root = Path(__file__).resolve().parents[3]
+        preset_path = root / "data" / "preset_k20a2.json"
+        assert preset_path.exists(), f"preset_k20a2.json not found at {preset_path}"
+        with preset_path.open("r", encoding="utf-8") as f:
             preset = json.load(f)
 
         # Meta

@@ -101,3 +101,15 @@ Flow, geometry, and tuning data for the K20A2 preset are based on the above sour
 ---
 
 Flow numbers are bench-dependent; use your own flowbench data for best accuracy.
+
+## Generowanie artefaktów K20A2 (headless)
+
+Windows / PowerShell:
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+$env:QT_QPA_PLATFORM = "offscreen"; $env:MPLBACKEND = "Agg"
+ .\.venv\Scripts\python.exe -u scripts\gen_k20a2_artifacts.py
+```
+
+Wynikowe pliki pojawią się w katalogu `artifacts/` (sesja + wyniki JSON, opcjonalne CSV pomiarów).
