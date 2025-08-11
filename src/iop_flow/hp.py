@@ -10,6 +10,28 @@ from .schemas import Session
 LB_PER_HR_PER_KG_PER_S = 7936.641  # 1 kg/s -> lb/h
 
 
+def hp_from_mass_air(air_kg_s: float, afr: float, bsfc_lb_hph: float) -> float:
+    """Estimate power [HP] from mass air flow using AFR and BSFC.
+    HP ≈ (ṁ_air / AFR) / BSFC, where ṁ_air is in kg/s converted to lb/h.
+    - afr: air-fuel ratio by mass (e.g., 12.5 for gasoline NA)
+    - bsfc_lb_hph: specific fuel consumption [lb/(hp·h)], e.g., 0.50
+    """
+    if air_kg_s < 0 or afr <= 0 or bsfc_lb_hph <= 0:
+        raise ValueError("air>=0, afr>0, bsfc>0")
+    fuel_kg_s = air_kg_s / afr
+    fuel_lb_per_hr = fuel_kg_s * LB_PER_HR_PER_KG_PER_S
+    return float(fuel_lb_per_hr / bsfc_lb_hph)
+
+
+def hp_from_cfm(cfm_total: float, cfm_per_hp: float = 1.67) -> float:
+    """Rule-of-thumb HP from total CFM at 28" H2O.
+    HP ≈ CFM_total / cfm_per_hp. Default 1.67 CFM per HP.
+    """
+    if cfm_total < 0 or cfm_per_hp <= 0:
+        raise ValueError("cfm_total>=0 and cfm_per_hp>0")
+    return float(cfm_total / cfm_per_hp)
+
+
 def estimate_hp_point_mode_b(
     *,
     displ_L: float,
