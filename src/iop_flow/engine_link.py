@@ -58,7 +58,10 @@ def rpm_limited_by_flow_for_series(
 
     q_head = _select_q_head(q_vals, strategy)
     ve = _resolve_ve(engine, ve_fallback)
-    rpm = F.rpm_limited_by_flow(q_head, engine.displ_L, ve)
+    # Per-cylinder displacement to match per-port flowbench data
+    cyl = max(1, int(getattr(engine, "cylinders", 1) or 1))
+    displ_per_cyl_L = float(engine.displ_L) / float(cyl)
+    rpm = F.rpm_limited_by_flow(q_head, displ_per_cyl_L, ve)
     if rpm <= 0.0:
         raise ValueError("computed RPM must be > 0")
     return rpm

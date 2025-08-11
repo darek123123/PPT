@@ -66,7 +66,7 @@ class StepRunnersPlenum(QWidget):
         self.rb_i_o1 = QRadioButton("harm 1", self)
         self.rb_i_o3 = QRadioButton("harm 3", self)
         self.rb_i_o5 = QRadioButton("harm 5", self)
-        self.rb_i_o1.setChecked(True)
+        self.rb_i_o3.setChecked(True)
         rowi3.addWidget(self.rb_i_o1)
         rowi3.addWidget(self.rb_i_o3)
         rowi3.addWidget(self.rb_i_o5)
@@ -220,10 +220,10 @@ class StepRunnersPlenum(QWidget):
             # Estimate q_peak from engine requirement at RPM
             q_eng = F.engine_volumetric_flow(self.state.engine.displ_L if self.state.engine else 2.0, rpm, (self.state.engine.ve if self.state.engine and self.state.engine.ve else 1.0))
             bounds = RunnerBounds(
-                L_min_m=max(0.05, float((self.ed_Li_min.text() or "200").replace(",", ".")) / 1000.0),
-                L_max_m=float((self.ed_Li_max.text() or "600").replace(",", ".")) / 1000.0,
-                d_min_m=max(0.02, float((self.ed_di_min.text() or "30").replace(",", ".")) / 1000.0),
-                d_max_m=float((self.ed_di_max.text() or "55").replace(",", ".")) / 1000.0,
+                    L_min_m=max(0.05, float((self.ed_Li_min.text() or "250").replace(",", ".")) / 1000.0),
+                    L_max_m=float((self.ed_Li_max.text() or "500").replace(",", ".")) / 1000.0,
+                    d_min_m=max(0.02, float((self.ed_di_min.text() or "45").replace(",", ".")) / 1000.0),
+                    d_max_m=float((self.ed_di_max.text() or "60").replace(",", ".")) / 1000.0,
             )
             best, score = grid_search_runner(a, rpm, q_eng, v_target, bounds)
             self.lbl_out_i.setText(f"BEST INT: L={best.L_m*1000:.0f} mm d={best.d_m*1000:.1f} mm A={best.A_m2*1e6:.0f} mm² harm={best.order}; score={score:.0f}; {best.note}")
@@ -275,10 +275,10 @@ class StepRunnersPlenum(QWidget):
             a = F.speed_of_sound(T)
             q_eng = F.engine_volumetric_flow(self.state.engine.displ_L if self.state.engine else 2.0, rpm, (self.state.engine.ve if self.state.engine and self.state.engine.ve else 1.0)) * 1.1
             bounds = RunnerBounds(
-                L_min_m=max(0.10, float((self.ed_Le_min.text() or "200").replace(",", ".")) / 1000.0),
-                L_max_m=float((self.ed_Le_max.text() or "500").replace(",", ".")) / 1000.0,
-                d_min_m=max(0.025, float((self.ed_de_min.text() or "28").replace(",", ".")) / 1000.0),
-                d_max_m=float((self.ed_de_max.text() or "50").replace(",", ".")) / 1000.0,
+                    L_min_m=max(0.10, float((self.ed_Le_min.text() or "350").replace(",", ".")) / 1000.0),
+                    L_max_m=float((self.ed_Le_max.text() or "700").replace(",", ".")) / 1000.0,
+                    d_min_m=max(0.025, float((self.ed_de_min.text() or "35").replace(",", ".")) / 1000.0),
+                    d_max_m=float((self.ed_de_max.text() or "42").replace(",", ".")) / 1000.0,
             )
             best, score = grid_search_runner(a, rpm, q_eng, v_target, bounds)
             self.lbl_out_e.setText(f"BEST EXH: L={best.L_m*1000:.0f} mm d={best.d_m*1000:.1f} mm A={best.A_m2*1e6:.0f} mm² harm={best.order}; score={score:.0f}; {best.note}")

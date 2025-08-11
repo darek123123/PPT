@@ -208,6 +208,19 @@ class StepValidate(QWidget):
                 target = self.state.engine_target_rpm if hasattr(self.state, "engine_target_rpm") else None
                 rpm_flow = eng.get("rpm_flow_limit")
                 rpm_csa = eng.get("rpm_from_csa")
+                # Q*peak info (per-port times cylinders)
+                try:
+                    series_intake = (out.get("series", {}) or {}).get("intake", [])
+                    if series_intake:
+                        q_peak_m3s = max(float(r.get("q_m3s_ref") or 0.0) for r in series_intake)
+                        q_peak_cfm = q_peak_m3s * 2118.880003  # M3S_TO_CFM
+                        cyl = getattr(self.state.engine, "cylinders", 4) if self.state.engine else 4
+                        self._add_item(
+                            "INFO",
+                            f"Q*peak INT≈{q_peak_cfm:.1f} CFM/port → total≈{q_peak_cfm*float(cyl):.0f} CFM",
+                        )
+                except Exception:
+                    pass
                 if target:
                     if rpm_flow is not None and rpm_flow < 0.8 * float(target):
                         self._add_item("WARN", "RPM_flow_limit < 0.8×target")

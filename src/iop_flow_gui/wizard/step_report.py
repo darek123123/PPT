@@ -79,9 +79,9 @@ class StepReport(QWidget):
         # Mode A params (CFM per HP)
         a_row = QHBoxLayout()
         self.ed_cfm_per_hp = QLineEdit(self)
-        self.ed_cfm_per_hp.setPlaceholderText("CFM/HP (np. 1.67)")
-        self.ed_cfm_per_hp.setToolTip("Reguła kciuka: CFM na 1 HP (np. 1.5–1.8)")
-        self.ed_cfm_per_hp.setText("1.67")
+        self.ed_cfm_per_hp.setPlaceholderText("CFM/HP (np. 3.9)")
+        self.ed_cfm_per_hp.setToolTip("Reguła kciuka: CFM na 1 HP (np. 3.8–4.0)")
+        self.ed_cfm_per_hp.setText("3.9")
         a_row.addWidget(QLabel("CFM/HP:", self))
         a_row.addWidget(self.ed_cfm_per_hp)
         a_row.addStretch(1)
@@ -669,7 +669,7 @@ class StepReport(QWidget):
                 q_peak_cfm = (max(q_m3s) if q_m3s else 0.0) * F.M3S_TO_CFM
                 cyl = getattr(session.engine, "cylinders", 4) or 4
                 cfm_total = q_peak_cfm * float(cyl)
-                cfm_per_hp = float((self.ed_cfm_per_hp.text() or "1.67").replace(",", "."))
+                cfm_per_hp = float((self.ed_cfm_per_hp.text() or "3.9").replace(",", "."))
                 hp_tot = hp_from_cfm(cfm_total, cfm_per_hp)
                 hp_tot *= (1.0 - loss)
                 xs = self._rpm_grid()

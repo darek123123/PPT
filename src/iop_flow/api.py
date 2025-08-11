@@ -61,7 +61,8 @@ def run_all(
     # Silnik
     rpm_flow_limit: Optional[float] = None
     if intake:
-        rpm_flow_limit = rpm_limited_by_flow_for_series(intake, session.engine)
+        # Use peak Q* per port and per-cylinder displacement for a realistic limit
+        rpm_flow_limit = rpm_limited_by_flow_for_series(intake, session.engine, strategy="max")
 
     rpm_from_csa: Optional[float] = None
     if session.csa is not None:

@@ -171,7 +171,7 @@ class StepExhaust(QWidget):
         self.ed_rpm_exh.setPlaceholderText("RPM cel")
         if self.state.engine_target_rpm:
             self.ed_rpm_exh.setText(str(self.state.engine_target_rpm))
-        self.lbl_len_exh = QLabel("L ≈ — mm; a(T)=— m/s", self)
+        self.lbl_len_exh = QLabel("L ≈ — mm; a_exh(T)=— m/s; harm=—", self)
         for lab, w in (("phi:", self.ed_phi_exh), ("harm:", self.ed_harm_exh), ("RPM:", self.ed_rpm_exh)):
             hl.addWidget(QLabel(lab, self))
             hl.addWidget(w)
@@ -381,12 +381,13 @@ class StepExhaust(QWidget):
             rpm = float(
                 (self.ed_rpm_exh.text() or str(self.state.engine_target_rpm or 6500)).replace(",", ".")
             )
-            T = float(self.state.air.T if self.state.air else 293.15)
-            a_T = F.speed_of_sound(T)
-            L_m = primary_length_exhaust_quarterwave(rpm, T, phi_deg=phi, harmonic=harm)
-            self.lbl_len_exh.setText(f"L ≈ {L_m*1000:.0f} mm; a(T)={a_T:.0f} m/s")
+            # Use exhaust gas temperature for a(T)
+            T_exh = float((self.spn_T_exh_K.value() if hasattr(self, "spn_T_exh_K") else 700.0))
+            a_T = F.speed_of_sound(T_exh)
+            L_m = primary_length_exhaust_quarterwave(rpm, T_exh, phi_deg=phi, harmonic=harm)
+            self.lbl_len_exh.setText(f"L ≈ {L_m*1000:.0f} mm; a_exh(T)={a_T:.0f} m/s; harm={harm}")
         except Exception:  # pragma: no cover
-            self.lbl_len_exh.setText("L ≈ — mm; a(T)=— m/s")
+            self.lbl_len_exh.setText("L ≈ — mm; a_exh(T)=— m/s; harm=—")
 
     # ---- Base wizard interactions ----
     def eventFilter(self, obj, event):  # type: ignore[override]
